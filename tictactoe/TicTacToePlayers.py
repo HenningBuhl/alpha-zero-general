@@ -61,9 +61,8 @@ class OneStepLookaheadTicTacToePlayer():
         stop_loss_move_set = set()
         for move, valid in enumerate(valid_moves):
             if not valid: continue
-            nb, p = self.game.getNextState(board, self.player_num, move)
-            if self.player_num == self.game.getGameEnded(nb, -p):
-                            win_move_set.add(move)
+            if -self.player_num == self.game.getGameEnded(*self.game.getNextState(board, self.player_num, move)):
+                win_move_set.add(move)
             elif -self.player_num == self.game.getGameEnded(*self.game.getNextState(board, -self.player_num, move)):
                 stop_loss_move_set.add(move)
             else:
