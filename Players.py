@@ -82,3 +82,31 @@ class OneStepLookaheadPlayer():
             raise Exception('No valid moves remaining: %s' % game.stringRepresentation(board))
 
         return ret_move
+
+
+class AlphaPlayer():
+    def __init__(self, game, nnet, MCTS=None, nnargs=None):
+        self.game = game
+        self.nnet = nnet
+        self.MCTS = MCTS
+        self.nnargs = nnargs
+        if self.MCTS is not None:
+            self.mcts = self.MCTS(self.game, self.nnet, self.nnargs)
+
+    def play(self, board):
+        if self.MCTS is not None: # Use MCTS.
+            a = np.argmax(self.mcts.getActionProb(board, temp=0))
+        else: # Use vanilla network without MCTS.
+            valids = self.game.getValidMoves(board, 1)
+            pi, v = self.nnet.predict(board)
+            pi *= valids
+            sum_pi = np.sum(pi)
+            if sum_pi > 0:
+                pi /= sum_pi    # Renormalize.
+            else: # All moves all equally likely.
+                pi += valids
+                pi /= np.sum(pi)
+                #action = np.random.choice(len(pi), p=pi) # Get random action.
+                #return action
+            a = np.argmax(pi)
+        return a
