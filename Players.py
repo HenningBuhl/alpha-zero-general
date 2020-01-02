@@ -15,7 +15,7 @@ class RandomPlayer():
 
     def play(self, board):
         valids = self.game.getValidMoves(board, 1)
-        valid_indices = np.argwhere(valids==1).squeeze()
+        valid_indices = [i for i, valid in enumerate(valids) if valid]
         a = np.random.choice(valid_indices)
         return a
 
