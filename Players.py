@@ -20,31 +20,22 @@ class RandomPlayer():
         return a
 
 
-# TODO: Make code generic for any game.
 class HumanPlayer():
     def __init__(self, game):
         self.game = game
 
     def play(self, board):
-        # display(board)
-        valid = self.game.getValidMoves(board, 1)
-        for i in range(len(valid)):
-            if valid[i]:
-                print(int(i/self.game.n), int(i%self.game.n))
+        valid_moves = self.game.getValidMoves(board, 1)
+        uf_moves = self.game.getUserFriendlyMoves(board, 1)
+        for i, (valid, uf_move) in enumerate(uf_moves):
+            if valid:
+                print(f'Move: {i:2d}, UF: {uf_move}')
+
         while True:
-            # Python 3.x
-            a = input()
-            # Python 2.x 
-            # a = raw_input()
-
-            x,y = [int(x) for x in a.split(' ')]
-            a = self.game.n * x + y if x!= -1 else self.game.n ** 2
-            if valid[a]:
-                break
-            else:
-                print('Invalid')
-
-        return a
+            move = int(input())
+            if valid_moves[move]: break
+            else: print('Invalid move')
+        return move
 
 
 class OneStepLookaheadPlayer():
