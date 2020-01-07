@@ -75,13 +75,13 @@ class OneStepLookaheadPlayer():
 
 
 class AlphaPlayer():
-    def __init__(self, game, nnet, MCTS=None, nnargs=None):
+    def __init__(self, game, nnet, MCTS=None, mctsargs=None):
         self.game = game
         self.nnet = nnet
         self.MCTS = MCTS
-        self.nnargs = nnargs
+        self.mctsargs = mctsargs
         if self.MCTS is not None:
-            self.mcts = self.MCTS(self.game, self.nnet, self.nnargs)
+            self.mcts = self.MCTS(self.game, self.nnet, self.mctsargs)
 
     def play(self, board):
         if self.MCTS is not None: # Use MCTS.
