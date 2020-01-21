@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import time
+import itertools
 EPS = 1e-8
 
 class MCTS():
@@ -29,13 +30,14 @@ class MCTS():
             probs: a policy vector where the probability of the ith action is
                    proportional to Nsa[(s,a)]**(1./temp)
         """
+        
         start = time.time()
-        for i in range(self.args.numMCTSSims):
+        for i in range(self.args.numMCTSSims) if self.args.numMCTSSims is not None else itertools.count():
             self.search(canonicalBoard)
             elapsed = time.time() - start
             if self.args.maxTime is not None and elapsed > self.args.maxTime:
                 break
-
+        
         s = self.game.stringRepresentation(canonicalBoard)
         counts = [self.Nsa[(s,a)] if (s,a) in self.Nsa else 0 for a in range(self.game.getActionSize())]
 
@@ -48,7 +50,6 @@ class MCTS():
             counts_sum = float(sum(counts))
             probs = [x/counts_sum for x in counts]
         return probs
-
 
     def search(self, canonicalBoard):
         """
@@ -109,7 +110,7 @@ class MCTS():
                 if (s,a) in self.Qsa:
                     u = self.Qsa[(s,a)] + self.args.cpuct*self.Ps[s][a]*math.sqrt(self.Ns[s])/(1+self.Nsa[(s,a)])
                 else:
-                    u = self.args.cpuct*self.Ps[s][a]*math.sqrt(self.Ns[s] + EPS)     # Q = 0 ?
+                    u = self.args.cpuct*self.Ps[s][a]*math.sqrt(self.Ns[s] + EPS) # Q = 0 ?
 
                 if u > cur_best:
                     cur_best = u
