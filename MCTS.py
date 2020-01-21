@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import time
 EPS = 1e-8
 
 class MCTS():
@@ -28,8 +29,12 @@ class MCTS():
             probs: a policy vector where the probability of the ith action is
                    proportional to Nsa[(s,a)]**(1./temp)
         """
+        start = time.time()
         for i in range(self.args.numMCTSSims):
             self.search(canonicalBoard)
+            elapsed = time.time() - start
+            if self.args.maxTime is not None and elapsed > self.args.maxTime:
+                break
 
         s = self.game.stringRepresentation(canonicalBoard)
         counts = [self.Nsa[(s,a)] if (s,a) in self.Nsa else 0 for a in range(self.game.getActionSize())]
@@ -37,12 +42,15 @@ class MCTS():
         if temp==0:
             bestA = np.argmax(counts)
             probs = [0]*len(counts)
-            probs[bestA]=1
-            return probs
+            probs[bestA] = 1
+        else:
+            counts = [x**(1./temp) for x in counts]
+            counts_sum = float(sum(counts))
+            probs = [x/counts_sum for x in counts]
 
-        counts = [x**(1./temp) for x in counts]
-        counts_sum = float(sum(counts))
-        probs = [x/counts_sum for x in counts]
+        if self.args.verbose and temp > 0:
+            for a, p in enumerate(probs):
+                print(f'Move: {a}, Prob: {p}')
         return probs
 
 
@@ -78,10 +86,10 @@ class MCTS():
             # leaf node
             self.Ps[s], v = self.nnet.predict(canonicalBoard)
             valids = self.game.getValidMoves(canonicalBoard, 1)
-            self.Ps[s] = self.Ps[s]*valids      # masking invalid moves
+            self.Ps[s] = self.Ps[s]*valids # masking invalid moves
             sum_Ps_s = np.sum(self.Ps[s])
             if sum_Ps_s > 0:
-                self.Ps[s] /= sum_Ps_s    # renormalize
+                self.Ps[s] /= sum_Ps_s # renormalize
             else:
                 # if all valid moves were masked make all valid moves equally probable
                 
@@ -120,7 +128,6 @@ class MCTS():
         if (s,a) in self.Qsa:
             self.Qsa[(s,a)] = (self.Nsa[(s,a)]*self.Qsa[(s,a)] + v)/(self.Nsa[(s,a)]+1)
             self.Nsa[(s,a)] += 1
-
         else:
             self.Qsa[(s,a)] = v
             self.Nsa[(s,a)] = 1

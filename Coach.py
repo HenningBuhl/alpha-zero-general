@@ -1,5 +1,6 @@
 from collections import deque
 from Arena import Arena
+from Players import AlphaPlayer
 from MCTS import MCTS
 import numpy as np
 from pytorch_classification.utils import Bar, AverageMeter
@@ -16,7 +17,7 @@ class Coach():
     def __init__(self, game, nnet, args):
         self.game = game
         self.nnet = nnet
-        self.pnet = self.nnet.__class__(self.game)  # the competitor network
+        self.pnet = self.nnet.__class__(self.game, args)  # the competitor network
         self.args = args
         self.mcts = MCTS(self.game, self.nnet, self.args)
         self.trainExamplesHistory = []    # history of examples from args.numItersForTrainExamplesHistory latest iterations
@@ -49,12 +50,12 @@ class Coach():
             temp = int(episodeStep < self.args.tempThreshold)
 
             pi = self.mcts.getActionProb(canonicalBoard, temp=temp)
-			if self.args.useSymmetry:
-				sym = self.game.getSymmetries(canonicalBoard, pi)
-				for b,p in sym:
-					trainExamples.append([b, self.curPlayer, p, None])
-			else:
-				trainExamples.append([canonicalBoard, self.curPlayer, pi, None])
+            if self.args.useSymmetry:
+                sym = self.game.getSymmetries(canonicalBoard, pi)
+                for b,p in sym:
+                    trainExamples.append([b, self.curPlayer, p, None])
+            else:
+                trainExamples.append([canonicalBoard, self.curPlayer, pi, None])
 
             action = np.random.choice(len(pi), p=pi)
             board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
@@ -99,7 +100,7 @@ class Coach():
                 # save the iteration examples to the history 
                 self.trainExamplesHistory.append(iterationTrainExamples)
                 
-            if len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory:
+            if self.args.numItersForTrainExamplesHistory is not None and len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory:
                 print("len(trainExamplesHistory) =", len(self.trainExamplesHistory), " => remove the oldest trainExamples")
                 self.trainExamplesHistory.pop(0)
             # backup history to a file
@@ -114,19 +115,19 @@ class Coach():
 
             # training new network, keeping a copy of the old one
             self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-            self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-            pmcts = MCTS(self.game, self.pnet, self.args)
-            
             self.nnet.train(trainExamples)
-            nmcts = MCTS(self.game, self.nnet, self.args)
+            if self.args.arenaCompare is not None:
+                self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
+                
+                print('PITTING AGAINST PREVIOUS VERSION')
+                arena = Arena(AlphaPlayer(self.game, self.pnet, MCTS, self.args).play,
+                            AlphaPlayer(self.game, self.nnet, MCTS, self.args).play,
+                            self.game)
+                pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
 
-            print('PITTING AGAINST PREVIOUS VERSION')
-            arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
-                          lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
-            pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
-
-            print('NEW/PREV WINS : %d / %d ; DRAWS : %d' % (nwins, pwins, draws))
-            if not self.args.updateContinuously and (pwins+nwins == 0 or float(nwins)/(pwins+nwins) <= self.args.updateThreshold):
+                print('NEW/PREV WINS : %d / %d ; DRAWS : %d' % (nwins, pwins, draws))
+            
+            if self.args.arenaCompare is not None and self.args.updateThreshold is not None and (pwins+nwins == 0 or float(nwins)/(pwins+nwins) <= self.args.updateThreshold):
                 print('REJECTING NEW MODEL')
                 self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
             else:
