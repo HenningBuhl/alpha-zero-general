@@ -59,6 +59,21 @@ class Game():
         """
         pass
 
+    def getUserFriendlyMoves(self, board, player):
+        """
+        Input:
+            board: current board
+            player: current player
+        
+        Returns:
+            a list with tuples (move, user friendly representation).
+        """
+
+        uf_moves = []
+        for i, valid in enumerate(self.getValidMoves(board, player)):
+            uf_moves.append((valid, (int(i/self.n), int(i%self.n))))
+        return uf_moves
+    
     def getGameEnded(self, board, player):
         """
         Input:
