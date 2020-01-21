@@ -29,7 +29,7 @@ class TicTacToeGame(Game):
 
     def getActionSize(self):
         # return number of actions
-        return self.n*self.n + 1
+        return self.n*self.n + 1 #?????
 
     def getNextState(self, board, player, action):
         # if player takes action on board, return next (board,player)
@@ -55,6 +55,16 @@ class TicTacToeGame(Game):
             valids[self.n*x+y]=1
         return np.array(valids)
 
+    def getUserFriendlyMoves(self, board, player):
+        '''
+        Returns a list with tuples (move, user friendly representation).
+        '''
+
+        uf_moves = []
+        for i, valid in enumerate(self.getValidMoves(board, player)):
+            uf_moves.append((valid, (int(i/self.n), int(i%self.n))))
+        return uf_moves
+
     def getGameEnded(self, board, player):
         # return 0 if not ended, 1 if player 1 won, -1 if player 1 lost
         # player = 1
@@ -76,7 +86,7 @@ class TicTacToeGame(Game):
 
     def getSymmetries(self, board, pi):
         # mirror, rotational
-        assert(len(pi) == self.n**2+1)  # 1 for pass
+        assert(len(pi) == self.n**2+1) # 1 for pass # REMOVED +1 (PASS?????)
         pi_board = np.reshape(pi[:-1], (self.n, self.n))
         l = []
 
