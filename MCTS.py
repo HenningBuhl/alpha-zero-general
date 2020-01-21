@@ -47,10 +47,6 @@ class MCTS():
             counts = [x**(1./temp) for x in counts]
             counts_sum = float(sum(counts))
             probs = [x/counts_sum for x in counts]
-
-        if self.args.verbose and temp > 0:
-            for a, p in enumerate(probs):
-                print(f'Move: {a}, Prob: {p}')
         return probs
 
 

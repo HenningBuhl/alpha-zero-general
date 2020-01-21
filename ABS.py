@@ -18,14 +18,11 @@ class ABS():
     def minimax(self, board, depth=0, currentPlayer=1, alpha=float('-inf'), beta=float('inf')):
         elapsed = time.time() - self.start
         if self.args.maxTime is not None and elapsed > self.args.maxTime:
-            #print('Times up!')
             return 0, None
 
         if self.args.maxDepth is not None and depth > self.args.maxDepth:
-            #print('Max depth reached!')
             return 0, None
 
-        #canonicalBoard = self.game.getCanonicalForm(board, 1)
         gameEnded = self.game.getGameEnded(board, 1)
         if gameEnded:
             gameEnded = int(gameEnded)
@@ -52,10 +49,7 @@ class ABS():
                     if score > maxEval:
                         bestMove = a
                         maxEval = score
-                    
-                    if self.args.verbose and depth == 0:
-                        print(f'Move: {a:2d}, Score: {score:2d}')
-                    
+
                     if self.args.prune:
                         alpha = np.maximum(alpha, score)
                         if beta <= alpha: # Prune.
@@ -79,16 +73,4 @@ class ABS():
                         if beta <= alpha: # Prune.
                             break
             return minEval, bestMove
-
-
-
-
-
-
-
-
-
-
-
-
 

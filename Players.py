@@ -94,7 +94,7 @@ class AlphaPlayer():
 
     def play(self, board):
         if self.MCTS is not None: # Use MCTS.
-            a = np.argmax(self.mcts.getActionProb(board, temp=self.args.temp))
+            a = np.argmax(self.mcts.getActionProb(board, temp=0))
         else: # Use vanilla network without MCTS.
             valids = self.game.getValidMoves(board, 1)
             pi, v = self.nnet.predict(board)
