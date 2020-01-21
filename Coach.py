@@ -52,7 +52,7 @@ class Coach():
             pi = self.mcts.getActionProb(canonicalBoard, temp=temp)
             if self.args.useSymmetry:
                 sym = self.game.getSymmetries(canonicalBoard, pi)
-                for b,p in sym:
+                for b, p in sym:
                     trainExamples.append([b, self.curPlayer, p, None])
             else:
                 trainExamples.append([canonicalBoard, self.curPlayer, pi, None])
@@ -63,7 +63,7 @@ class Coach():
             r = self.game.getGameEnded(board, self.curPlayer)
 
             if r!=0:
-                return [(x[0],x[2],r*((-1)**(x[1]!=self.curPlayer))) for x in trainExamples]
+                return [(board, pi, int(r)*((-1)**(player!=self.curPlayer))) for (board, player, pi, v) in trainExamples]
 
     def learn(self):
         """
