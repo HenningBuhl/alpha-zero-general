@@ -1,4 +1,5 @@
 import numpy as np
+from utils import *
 
 """
 Random and Human-ineracting players for the game of TicTacToe.
@@ -9,31 +10,39 @@ Date: Jan 5, 2018.
 Based on the OthelloPlayers by Surag Nair.
 
 """
-class RandomPlayer():
-    def __init__(self, game, args):
+
+class Player():
+    def __init__(self, game, args=None, verbose=False):
         self.game = game
         self.args = args
+        self.verbose = verbose
+
+    def play(self, board):
+        pass
+
+class RandomPlayer(Player):
+    def __init__(self, game, args=None, verbose=False):
+        super(RandomPlayer, self).__init__(game, args, verbose)
 
     def play(self, board):
         valids = self.game.getValidMoves(board, 1)
         valid_indices = [i for i, valid in enumerate(valids) if valid]
         a = np.random.choice(valid_indices)
-        if self.args.verbose:
+        if self.verbose:
             print(f'Playing random available move: {a}')
         return a
 
 
-class HumanPlayer():
-    def __init__(self, game, args):
-        self.game = game
-        self.args = args
+class HumanPlayer(Player):
+    def __init__(self, game, args=None, verbose=False):
+        super(HumanPlayer, self).__init__(game, args, verbose)
 
     def play(self, board):
         valid_moves = self.game.getValidMoves(board, 1)
         uf_moves = self.game.getUserFriendlyMoves(board, 1)
         for i, (valid, uf_move) in enumerate(uf_moves):
             if valid:
-                if self.args.verbose:
+                if self.verbose:
                     print(f'Move: {i:2d}, UF: {uf_move}')
 
         while True:
@@ -41,19 +50,18 @@ class HumanPlayer():
             if valid_moves[move]:
                 break
             else:
-                if self.args.verbose:
+                if self.verbose:
                     print('Invalid move')
-        if self.args.verbose:
+        if self.verbose:
             print(f'Playing action {move}')
         return move
 
 
-class OneStepLookaheadPlayer():
+class OneStepLookaheadPlayer(Player):
     """Simple player who always takes a win if presented, or blocks a loss if obvious, otherwise is random."""
-    def __init__(self, game, args):
-        self.game = game
+    def __init__(self, game, args=None, verbose=False):
+        super(OneStepLookaheadPlayer, self).__init__(game, args, verbose)
         self.player_num = 1
-        self.args = args
 
     def play(self, board):
         valid_moves = self.game.getValidMoves(board, self.player_num)
@@ -71,24 +79,26 @@ class OneStepLookaheadPlayer():
 
         if len(win_move_set) > 0:
             ret_move = np.random.choice(list(win_move_set))
-            if self.args.get('verbose'): print('Playing winning action %s from %s' % (ret_move, win_move_set))
+            if self.verbose:
+                print('Playing winning action %s from %s' % (ret_move, win_move_set))
         elif len(stop_loss_move_set) > 0:
             ret_move = np.random.choice(list(stop_loss_move_set))
-            if self.args.get('verbose'): print('Playing loss stopping action %s from %s' % (ret_move, stop_loss_move_set))
+            if self.verbose:
+                print('Playing loss stopping action %s from %s' % (ret_move, stop_loss_move_set))
         elif len(fallback_move_set) > 0:
             ret_move = np.random.choice(list(fallback_move_set))
-            if self.args.get('verbose'): print('Playing random action %s from %s' % (ret_move, fallback_move_set))
+            if self.verbose:
+                print('Playing random action %s from %s' % (ret_move, fallback_move_set))
         else:
             raise Exception('No valid moves remaining: %s' % game.stringRepresentation(board))
         return ret_move
 
 
-class AlphaPlayer():
-    def __init__(self, game, nnet, MCTS, args):
-        self.game = game
+class AlphaPlayer(Player):
+    def __init__(self, game, nnet, MCTS, args, verbose=False):
+        super(AlphaPlayer, self).__init__(game, args, verbose)
         self.nnet = nnet
         self.MCTS = MCTS
-        self.args = args
         if self.MCTS is not None:
             self.mcts = self.MCTS(self.game, self.nnet, self.args)
 
@@ -108,31 +118,31 @@ class AlphaPlayer():
                 #a = np.random.choice(len(pi), p=pi) # Get random action.
                 #return a
             a = np.argmax(pi)
-        if self.args.verbose:
+        if self.verbose:
             print(f'Choosing action {a}')
         return a
 
 
 class RawAlphaPlayer(AlphaPlayer):
-    def __init__(self, game, nnet, args):
-        super(RawAlphaPlayer, self).__init__(game, nnet, None, args)
+    def __init__(self, game, nnet, args=None, verbose=False):
+        super(RawAlphaPlayer, self).__init__(game, nnet, None, args, verbose)
 
 
 class MCTSPlayer(AlphaPlayer):
-    def __init__(self, game, MCTS, args):
-        super(MCTSPlayer, self).__init__(game, None, MCTS, args)
+    def __init__(self, game, MCTS, args, verbose=False):
+        super(MCTSPlayer, self).__init__(game, None, MCTS, args, verbose)
 
 
-class AlphaBetaPlayer():
-    def __init__(self, game, ABS, args):
+class AlphaBetaPlayer(Player):
+    def __init__(self, game, ABS, args, verbose=False):
+        super(AlphaBetaPlayer, self).__init__(game, args, verbose)
         self.game = game
         self.ABS = ABS
-        self.args = args
         self.abs = self.ABS(self.game, self.args)
 
     def play(self, board):
         a = np.argmax(self.abs.getActionProb(board))
-        if self.args.verbose:
+        if self.verbose:
             print(f'Choosing action {a}')        
         return a
 
