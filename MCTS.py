@@ -2,7 +2,6 @@ import math
 import numpy as np
 import time
 import itertools
-EPS = 1e-8
 
 class MCTS():
     """
@@ -17,7 +16,6 @@ class MCTS():
         self.Nsa = {}       # stores #times edge s,a was visited
         self.Ns = {}        # stores #times board s was visited
         self.Ps = {}        # stores initial policy (returned by neural net)
-
         self.Es = {}        # stores game.getGameEnded ended for board s
         self.Vs = {}        # stores game.getValidMoves for board s
 
@@ -33,7 +31,7 @@ class MCTS():
         
         start = time.time()
         for i in range(self.args.numMCTSSims) if self.args.numMCTSSims is not None else itertools.count():
-            self.search(canonicalBoard)
+            self.search(canonicalBoard, True)
             elapsed = time.time() - start
             if self.args.maxTime is not None and elapsed > self.args.maxTime:
                 break
@@ -51,7 +49,7 @@ class MCTS():
             probs = [x/counts_sum for x in counts]
         return probs
 
-    def search(self, canonicalBoard):
+    def search(self, canonicalBoard, rootNode=False):
         """
         This function performs one iteration of MCTS. It is recursively called
         till a leaf node is found. The action chosen at each node is one that
@@ -103,14 +101,27 @@ class MCTS():
         valids = self.Vs[s]
         cur_best = -float('inf')
         best_act = -1
-
+        
+        # Dirichlet Noise.
+        useDirNoise = False
+        dirAlpha = self.args.dirAlpha
+        dirEpsilon = self.args.dirEpsilon
+        if rootNode and dirEpsilon > 0:
+            useDirNoise = True
+            dirEta = np.random.dirichlet([dirAlpha] * len(canonicalBoard.valids))
+        
         # pick the action with the highest upper confidence bound
-        for a in range(self.game.getActionSize()):
+        for i, a in enumerate(range(self.game.getActionSize())):
             if valids[a]:
-                if (s,a) in self.Qsa:
-                    u = self.Qsa[(s,a)] + self.args.cpuct*self.Ps[s][a]*math.sqrt(self.Ns[s])/(1+self.Nsa[(s,a)])
+                if useDirNoise:
+                    p = (1 - dirEpsilon) * self.Ps[s][a] + dirEpsilon * dirEta[i]
                 else:
-                    u = self.args.cpuct*self.Ps[s][a]*math.sqrt(self.Ns[s] + EPS) # Q = 0 ?
+                    p = self.Ps[s][a]
+                
+                if (s,a) in self.Qsa:
+                    u = self.Qsa[(s,a)] + self.args.cpuct*p*math.sqrt(self.Ns[s])/(1+self.Nsa[(s,a)])
+                else:
+                    u = self.args.cpuct*p*math.sqrt(self.Ns[s])
 
                 if u > cur_best:
                     cur_best = u
