@@ -28,38 +28,48 @@ class NNetWrapper(NeuralNet):
         self.nnet = onnet(game, self.args)
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
-        self.history = []
+        self.history = {}
+
 
     def train(self, examples):
-        """
-        examples: list of examples, each example is of form (board, pi, v)
-        """
         input_boards, target_pis, target_vs = list(zip(*examples))
         input_boards = np.asarray(input_boards)
         target_pis = np.asarray(target_pis)
         target_vs = np.asarray(target_vs)
-        _history = self.nnet.model.fit(
-            x=input_boards,
-            y=[target_pis, target_vs],
-            batch_size=self.args.batch_size,
-            epochs=self.args.epochs)
-        self.history.append(_history)
+        
+        if self.args.rollout == 'fast':
+            # Train the combined model (pi, v, pi_fast).
+            history = self.nnet.combined_model.fit(
+                x=input_boards,
+                y=[target_pis, target_vs, target_pis],
+                batch_size=self.args.batch_size,
+                epochs=self.args.epochs)
+        else:
+            # Train the model (pi, v).
+            history = self.nnet.model.fit(
+                x=input_boards,
+                y=[target_pis, target_vs],
+                batch_size=self.args.batch_size,
+                epochs=self.args.epochs)
+        
+        # Add trainig results to history.
+        for key in history.history.keys:
+            if key not in self.history: # Add empty list to dict when key not known.
+                self.history[key] = []
+            self.history[key].extend(history.history[key])
+
 
     def predict(self, board):
-        """
-        board: np array with board
-        """
-        # timing
-        start = time.time()
-
-        # preparing input
         board = board[np.newaxis, :, :]
-
-        # run
         pi, v = self.nnet.model.predict(board)
-
-        #print('PREDICTION TIME TAKEN : {0:03f}'.format(time.time()-start))
         return pi[0], v[0]
+
+
+    def predict_fast(self, board):
+        board = board[np.newaxis, :, :]
+        pi_fast = self.nnet.fast_model.predict(board)
+        return pi_fast[0]
+
 
     def save_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
         filepath = os.path.join(folder, filename)
@@ -70,9 +80,11 @@ class NNetWrapper(NeuralNet):
             print("Checkpoint Directory exists! ")
         self.nnet.model.save_weights(filepath)
 
+
     def load_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
         # https://github.com/pytorch/examples/blob/master/imagenet/main.py#L98
         filepath = os.path.join(folder, filename)
         if not os.path.exists(filepath):
             raise("No model in path '{}'".format(filepath))
         self.nnet.model.load_weights(filepath)
+
