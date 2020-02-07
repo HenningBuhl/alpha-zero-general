@@ -30,9 +30,20 @@ class NeuralNet():
             board: current board in its canonical form.
 
         Returns:
-            pi: a policy vector for the current board- a numpy array of length
+            pi: a policy vector for the current board - a numpy array of length
                 game.getActionSize
             v: a float in [-1,1] that gives the value of the current board
+        """
+        pass
+
+    def predict_fast(self, board)
+        """
+        Input:
+            board: current board in its canonical form.
+
+        Returns:
+            pi: a fast policy vector for the current board - a numpy array of length
+                game.getActionSize
         """
         pass
 
