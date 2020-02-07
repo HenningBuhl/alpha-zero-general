@@ -78,21 +78,67 @@ class MCTS():
             return -int(self.Es[s])
 
         if s not in self.Ps:
-            # leaf node
-            self.Ps[s], v = self.nnet.predict(canonicalBoard)
+            # Leaf node.
             valids = self.game.getValidMoves(canonicalBoard, 1)
-            self.Ps[s] = self.Ps[s]*valids # masking invalid moves
-            sum_Ps_s = np.sum(self.Ps[s])
-            if sum_Ps_s > 0:
-                self.Ps[s] /= sum_Ps_s # renormalize
+
+            if self.args.rollout == 'random':
+                self.Ps[s] = valids / np.sum(valids)
+                board = canonicalBoard
+                cur_player = 1
+                while True: # Random rollout.
+                    vs = self.game.getValidMoves(board, cur_player)
+                    a = np.random.choice(vs.shape[0], p=vs/np.sum(vs))
+                    board, next_player = self.game.getNextState(board, cur_player, a)
+                    r = self.game.getGameEnded(board, 1)
+                    if r != 0:
+                        break
+                    cur_player = next_player
+                v = r
+            elif self.args.rollout == 'single':
+                self.Ps[s], v = self.nnet.predict(canonicalBoard)
+                self.Ps[s] = self.Ps[s]*valids # masking invalid moves
+                sum_Ps_s = np.sum(self.Ps[s])
+                if sum_Ps_s > 0:
+                    self.Ps[s] /= sum_Ps_s # renormalize
+                else:
+                    # if all valid moves were masked make all valid moves equally probable
+                    # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
+                    # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.   
+                    print("All valid moves were masked, do workaround.")
+                    self.Ps[s] = self.Ps[s] + valids
+                    self.Ps[s] /= np.sum(self.Ps[s])
+            elif self.args.rollout == 'fast':
+                self.Ps[s] = valids / np.sum(valids)
+                board = canonicalBoard
+                cur_player = 1
+                while True: # Fast rollout.
+                    vs = self.game.getValidMoves(board, cur_player)
+                    pi_fast = self.nnet.predict_fast(board)
+                    pi_fast = pi_fast * vs
+                    a = np.random.choice(vs.shape[0], p=pi_fast/np.sum(pi_fast))
+                    board, next_player = self.game.getNextState(board, cur_player, a)
+                    r = self.game.getGameEnded(board, 1)
+                    if r != 0:
+                        break
+                    cur_player = next_player
+                v = r
+            elif self.args.rollout == 'slow':
+                self.Ps[s] = valids / np.sum(valids)
+                board = canonicalBoard
+                cur_player = 1
+                while True: # Slow rollout.
+                    vs = self.game.getValidMoves(board, cur_player)
+                    pi, _ = self.nnet.predict(board)
+                    pi = pi * vs
+                    a = np.random.choice(vs.shape[0], p=pi/np.sum(pi))
+                    board, next_player = self.game.getNextState(board, cur_player, a)
+                    r = self.game.getGameEnded(board, 1)
+                    if r != 0:
+                        break
+                    cur_player = next_player
+                v = r            
             else:
-                # if all valid moves were masked make all valid moves equally probable
-                
-                # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
-                # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.   
-                print("All valid moves were masked, do workaround.")
-                self.Ps[s] = self.Ps[s] + valids
-                self.Ps[s] /= np.sum(self.Ps[s])
+                raise ValueError(f'rollout \'{self.args.rollout}\' is not supported.')
 
             self.Vs[s] = valids
             self.Ns[s] = 0
