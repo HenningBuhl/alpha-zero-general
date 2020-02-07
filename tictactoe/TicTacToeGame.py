@@ -29,13 +29,13 @@ class TicTacToeGame(Game):
 
     def getActionSize(self):
         # return number of actions
-        return self.n*self.n + 1 #?????
+        return self.n*self.n# + 1 #?????
 
     def getNextState(self, board, player, action):
         # if player takes action on board, return next (board,player)
         # action must be a valid move
-        if action == self.n*self.n:
-            return (board, -player)
+        #if action == self.n*self.n:
+        #    return (board, -player)
         b = Board(self.n)
         b.pieces = np.copy(board)
         move = (int(action/self.n), action%self.n)
@@ -49,7 +49,7 @@ class TicTacToeGame(Game):
         b.pieces = np.copy(board)
         legalMoves =  b.get_legal_moves(player)
         if len(legalMoves)==0:
-            valids[-1]=1
+            #valids[-1]=1
             return np.array(valids)
         for x, y in legalMoves:
             valids[self.n*x+y]=1
@@ -86,8 +86,8 @@ class TicTacToeGame(Game):
 
     def getSymmetries(self, board, pi):
         # mirror, rotational
-        assert(len(pi) == self.n**2+1) # 1 for pass # REMOVED +1 (PASS?????)
-        pi_board = np.reshape(pi[:-1], (self.n, self.n))
+        assert(len(pi) == self.n**2) # 1 for pass # REMOVED +1 (PASS?????)
+        pi_board = np.reshape(pi, (self.n, self.n))
         l = []
 
         for i in range(1, 5):
@@ -97,7 +97,7 @@ class TicTacToeGame(Game):
                 if j:
                     newB = np.fliplr(newB)
                     newPi = np.fliplr(newPi)
-                l += [(newB, list(newPi.ravel()) + [pi[-1]])]
+                l += [(newB, list(newPi.ravel()))]
         return l
 
     def stringRepresentation(self, board):
