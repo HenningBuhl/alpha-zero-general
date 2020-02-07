@@ -74,8 +74,8 @@ class MCTS():
         if s not in self.Es:
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
         if self.Es[s]!=0:
-            # terminal node
-            return -self.Es[s]
+            # Terminal node.
+            return -int(self.Es[s])
 
         if s not in self.Ps:
             # leaf node
@@ -96,7 +96,7 @@ class MCTS():
 
             self.Vs[s] = valids
             self.Ns[s] = 0
-            return -v
+            return -int(v)
 
         valids = self.Vs[s]
         cur_best = -float('inf')
@@ -141,4 +141,5 @@ class MCTS():
             self.Nsa[(s,a)] = 1
 
         self.Ns[s] += 1
-        return -v
+        return -int(v)
+
