@@ -36,7 +36,7 @@ class NeuralNet():
         """
         pass
 
-    def predict_fast(self, board)
+    def predict_fast(self, board):
         """
         Input:
             board: current board in its canonical form.

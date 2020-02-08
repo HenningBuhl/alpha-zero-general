@@ -49,16 +49,16 @@ class TicTacToeNNet():
         self.model = Model(inputs=self.input_boards, outputs=[self.pi, self.v], name='TicTacToeNNet')
         self.model.compile(loss=['categorical_crossentropy', 'mean_squared_error'], optimizer=Adam(self.args.lr))
         
-        if self.args.rollout == fast:
+        if self.args.rollout == 'fast':
             # Fast policy net.
             x_fast = Flatten(name='Flatten_pi_fast')(self.input_boards)
-            x_fast = Dense(self.action_size, activation='softmax', name='pi_fast')(x_fast)
-            self.fast_model = Model(inputs=self.input_boards, outputs=x_fast, name='TicTacToeNNet_fast')
+            self.pi_fast = Dense(self.action_size, activation='softmax', name='pi_fast')(x_fast)
+            self.fast_model = Model(inputs=self.input_boards, outputs=self.pi_fast, name='TicTacToeNNet_fast')
             self.fast_model.compile(loss='categorical_crossentropy', optimizer=Adam(self.args.lr))
 
             # Combined model (pi, v, pi_fast).
             self.combined_model = Model(inputs=self.input_boards, outputs=[self.pi, self.v, self.pi_fast], name='TicTacToeNNet_combined')
-            self.combined_model.compile(loss=['categorical_crossentropy', 'mean_squared_error', categorical_crossentropy], optimizer=Adam(self.args.lr))
+            self.combined_model.compile(loss=['categorical_crossentropy', 'mean_squared_error', 'categorical_crossentropy'], optimizer=Adam(self.args.lr))
 
 
     def body(self, x, prefix):

@@ -53,7 +53,7 @@ class NNetWrapper(NeuralNet):
                 epochs=self.args.epochs)
         
         # Add trainig results to history.
-        for key in history.history.keys:
+        for key in history.history.keys():
             if key not in self.history: # Add empty list to dict when key not known.
                 self.history[key] = []
             self.history[key].extend(history.history[key])

@@ -150,11 +150,11 @@ class MCTS():
         
         # Dirichlet Noise.
         useDirNoise = False
-        dirAlpha = self.args.dirAlpha
         dirEpsilon = self.args.dirEpsilon
         if rootNode and dirEpsilon > 0:
             useDirNoise = True
-            dirEta = np.random.dirichlet([dirAlpha] * len(canonicalBoard.valids))
+            dirAlpha = self.args.dirAlpha
+            dirEta = np.random.dirichlet([dirAlpha] * len(valids))
         
         # pick the action with the highest upper confidence bound
         for i, a in enumerate(range(self.game.getActionSize())):
