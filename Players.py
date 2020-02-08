@@ -17,18 +17,22 @@ class Player():
         self.args = args
         self.verbose = verbose
 
-    def play(self, board):
+    def play(self, board, verbose=False):
         pass
+    
+    def get_verbose(self, verbose=None):
+        return self.verbose if verbose is None else verbose
 
 class RandomPlayer(Player):
     def __init__(self, game, args=None, verbose=False):
         super(RandomPlayer, self).__init__(game, args, verbose)
 
-    def play(self, board):
+    def play(self, board, verbose=None):
+        verbose = super(RandomPlayer, self).get_verbose(verbose)
         valids = self.game.getValidMoves(board, 1)
         valid_indices = [i for i, valid in enumerate(valids) if valid]
         a = np.random.choice(valid_indices)
-        if self.verbose:
+        if verbose:
             print(f'Playing random available move: {a}')
         return a
 
@@ -37,7 +41,8 @@ class HumanPlayer(Player):
     def __init__(self, game, args=None, verbose=False):
         super(HumanPlayer, self).__init__(game, args, verbose)
 
-    def play(self, board):
+    def play(self, board, verbose=None):
+        verbose = super(HumanPlayer, self).get_verbose(verbose)
         valid_moves = self.game.getValidMoves(board, 1)
         uf_moves = self.game.getUserFriendlyMoves(board, 1)
         for i, (valid, uf_move) in enumerate(uf_moves):
@@ -50,9 +55,9 @@ class HumanPlayer(Player):
             if valid_moves[move]:
                 break
             else:
-                if self.verbose:
+                if verbose:
                     print('Invalid move')
-        if self.verbose:
+        if verbose:
             print(f'Playing action {move}')
         return move
 
@@ -63,7 +68,8 @@ class OneStepLookaheadPlayer(Player):
         super(OneStepLookaheadPlayer, self).__init__(game, args, verbose)
         self.player_num = 1
 
-    def play(self, board):
+    def play(self, board, verbose=None):
+        verbose = super(OneStepLookaheadPlayer, self).get_verbose(verbose)
         valid_moves = self.game.getValidMoves(board, self.player_num)
         win_move_set = set()
         fallback_move_set = set()
@@ -79,15 +85,15 @@ class OneStepLookaheadPlayer(Player):
 
         if len(win_move_set) > 0:
             ret_move = np.random.choice(list(win_move_set))
-            if self.verbose:
+            if verbose:
                 print('Playing winning action %s from %s' % (ret_move, win_move_set))
         elif len(stop_loss_move_set) > 0:
             ret_move = np.random.choice(list(stop_loss_move_set))
-            if self.verbose:
+            if verbose:
                 print('Playing loss stopping action %s from %s' % (ret_move, stop_loss_move_set))
         elif len(fallback_move_set) > 0:
             ret_move = np.random.choice(list(fallback_move_set))
-            if self.verbose:
+            if verbose:
                 print('Playing random action %s from %s' % (ret_move, fallback_move_set))
         else:
             raise Exception('No valid moves remaining: %s' % game.stringRepresentation(board))
@@ -102,7 +108,8 @@ class AlphaPlayer(Player):
         if self.MCTS is not None:
             self.mcts = self.MCTS(self.game, self.nnet, self.args)
 
-    def play(self, board):
+    def play(self, board, verbose=None):
+        verbose = super(AlphaPlayer, self).get_verbose(verbose)
         if self.MCTS is not None: # Use MCTS.
             a = np.argmax(self.mcts.getActionProb(board, temp=0))
         else: # Use vanilla network without MCTS.
@@ -118,7 +125,7 @@ class AlphaPlayer(Player):
                 #a = np.random.choice(len(pi), p=pi) # Get random action.
                 #return a
             a = np.argmax(pi)
-        if self.verbose:
+        if verbose:
             print(f'Choosing action {a}')
         return a
 
@@ -140,9 +147,10 @@ class AlphaBetaPlayer(Player):
         self.ABS = ABS
         self.abs = self.ABS(self.game, self.args)
 
-    def play(self, board):
+    def play(self, board, verbose=None):
+        verbose = super(AlphaBetaPlayer, self).get_verbose(verbose)
         a = np.argmax(self.abs.getActionProb(board))
-        if self.verbose:
+        if verbose:
             print(f'Choosing action {a}')        
         return a
 
