@@ -1,5 +1,6 @@
 from collections import deque
 from Arena import Arena
+from Tournament import Tournament
 from Players import AlphaPlayer
 from MCTS import MCTS
 import numpy as np
@@ -7,6 +8,7 @@ from pytorch_classification.utils import Bar, AverageMeter
 import time, os, sys
 from pickle import Pickler, Unpickler
 from random import shuffle
+from collections import deque
 
 
 class Coach():
@@ -17,11 +19,17 @@ class Coach():
     def __init__(self, game, nnet, args):
         self.game = game
         self.nnet = nnet
-        self.pnet = self.nnet.__class__(self.game, args)  # the competitor network
         self.args = args
+        if self.args.pastOpponents is not None:
+            self.opponents = []
+            self.results = [] # Contains list of list of tuples (win, loss, draw) against each past opponent.
+            self.ratings = []
+        else:
+            self.pnet = self.nnet.__class__(self.game, self.args)  # The competitor network.
+            self.results = [] # Contains list of tuples (win, loss, draw) for each battle in the arena against previous version.
         self.mcts = MCTS(self.game, self.nnet, self.args)
-        self.trainExamplesHistory = []    # history of examples from args.numItersForTrainExamplesHistory latest iterations
-        self.skipFirstSelfPlay = False    # can be overriden in loadTrainExamples()
+        self.trainExamplesHistory = [] # history of examples from args.numItersForTrainExamplesHistory latest iterations
+        self.skipFirstSelfPlay = False # can be overriden in loadTrainExamples()
 
     def executeEpisode(self):
         """
@@ -107,33 +115,69 @@ class Coach():
             # NB! the examples were collected using the model from the previous iteration, so (i-1)  
             self.saveTrainExamples(i-1)
             
-            # shuffle examples before training
+            # Shuffle examples before training.
             trainExamples = []
             for e in self.trainExamplesHistory:
                 trainExamples.extend(e)
             shuffle(trainExamples)
 
-            # training new network, keeping a copy of the old one
+            # Training new network, keeping a copy of the old one.
             self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
             self.nnet.train(trainExamples)
-            if self.args.arenaCompare is not None:
-                self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
+            if self.args.pastOpponents is not None and self.args.arenaCompare is not None: # Tournament.
+                print('HOSTING TOURNAMENT AGAINST PAST VERSIONS')
+                #if len(self.opponents) < self.args.pastOpponents: # This line adds only one player per iteration.
+                while len(self.opponents) < self.args.pastOpponents: # Only add new opponents if less than pastOpponents exist.
+                    self.pnet = self.nnet.__class__(self.game, self.args)
+                    self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')                
+                    self.opponents.append(self.pnet)
+
+                participant_models = [self.nnet]+list(self.opponents)
+                players = [AlphaPlayer(self.game, nnet, MCTS, self.args).play for nnet in participant_models]
+                tournament = Tournament(players, self.game, display=self.game.display)
+                results, ratings = tournament.compete(self.args.arenaCompare, rated=True, verbose=1)
+                self.results.append(results)
+                self.ratings.append(ratings)
+                maxEloArg = np.argmax(ratings)
+                maxElo = ratings[maxEloArg]
+                print(f'BEST PLAYER IS ID {maxEloArg} (ELO {maxElo})')
+                print(f'\tRESULTS: {results}')
+                print(f'\tRATINGS: {ratings}')
                 
+                opponent_ratings = ratings[1::] # Only regard the opponents' elo, not the nnet's elo.
+                maxOpponentEloArg = np.argmax(opponent_ratings)
+                maxOpponentElo = opponent_ratings[maxOpponentEloArg]
+                if self.args.minEloImprovement is not None and maxOpponentElo * (1+self.args.minEloImprovement) > ratings[0]:
+                    print('REJECTING NEW MODEL')
+                    self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
+                else:
+                    print('ACCEPTING NEW MODEL') # Tournament result.
+                    self.nnet.save_checkpoint(folder=self.args.checkpoint, filename=self.getCheckpointFile(i))
+                    self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='best.pth.tar')  
+
+                    if len(self.opponents) == self.args.pastOpponents: # Only remove worst opponent if new model is accepted.
+                        minEloArg = np.argmin(opponent_ratings)
+                        #print(f'REMOVING PLAYER WITH ID {minEloArg+1} (ELO {opponent_ratings[minEloArg]})') # Here +1, because nnet is not in this list.
+                        self.opponents.pop(minEloArg)
+
+            elif self.args.arenaCompare is not None: # Arena.
                 print('PITTING AGAINST PREVIOUS VERSION')
+                self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')                
                 arena = Arena(AlphaPlayer(self.game, self.pnet, MCTS, self.args).play,
                             AlphaPlayer(self.game, self.nnet, MCTS, self.args).play,
                             self.game)
-                pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
-
+                results = arena.playGames(self.args.arenaCompare)
+                self.results.append(results)
+                pwins, nwins, draws = results
                 print('NEW/PREV WINS : %d / %d ; DRAWS : %d' % (nwins, pwins, draws))
-            
-            if self.args.arenaCompare is not None and self.args.updateThreshold is not None and (pwins+nwins == 0 or float(nwins)/(pwins+nwins) <= self.args.updateThreshold):
-                print('REJECTING NEW MODEL')
-                self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-            else:
-                print('ACCEPTING NEW MODEL')
-                self.nnet.save_checkpoint(folder=self.args.checkpoint, filename=self.getCheckpointFile(i))
-                self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='best.pth.tar')                
+
+                if self.args.updateThreshold is not None and (pwins+nwins == 0 or float(nwins)/(pwins+nwins) <= self.args.updateThreshold):
+                    print('REJECTING NEW MODEL')
+                    self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
+                else:
+                    print('ACCEPTING NEW MODEL')
+                    self.nnet.save_checkpoint(folder=self.args.checkpoint, filename=self.getCheckpointFile(i))
+                    self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='best.pth.tar')                
 
     def getCheckpointFile(self, iteration):
         return 'checkpoint_' + str(iteration) + '.pth.tar'

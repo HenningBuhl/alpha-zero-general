@@ -20,21 +20,22 @@ class Tournament():
             An instance of the class.
         '''
         self.players = players
+        self.ratings = None
         self.game = game
         self.display = display
 
 
-    def compete(self, num, rated=False, ratings=None, verbose=False):
+    def compete(self, num, rated=False, reset_ratings=False, verbose=False):
         '''
         Args:
             num: Number of games player per pair.
             rated: Whether to calculate elo (default False).
-            ratings: List of ratings of all players (default None).
+            reset_ratings: Whether to reset the ratings (default False).
             verbose: Whether to print progress (default False).
         
         Returns:
             A List with (wins, losses, draws) for each player if rated=False.
-            A List with ratings for each player if rated=True.
+            A numpy array with ratings for each player if rated=True.
         '''
         eps_time = AverageMeter()
         end = time.time()
@@ -43,10 +44,10 @@ class Tournament():
         for i in combinations(self.players, 2): maxeps += 1
         if verbose == 1:
             bar = Bar('Tournament.compete', max=maxeps)
-
-        if rated and ratings is None:
-            ratings = [self.start_rating()] * len(self.players)
-
+        
+        if reset_ratings or self.ratings is None:
+            self.ratings = np.full(len(self.players), self.start_rating())
+        
         results = {}
         for p in (self.players):
             results[p] = {'win': 0, 'loss': 0, 'draw': 0}
@@ -73,10 +74,10 @@ class Tournament():
 
             if rated:
                 for s in ss:
-                    rating_p1 = ratings[p1_idx]
-                    rating_p2 = ratings[p2_idx]
-                    ratings[p1_idx] = self.new_rating(rating_p1, rating_p2, s)
-                    ratings[p2_idx] = self.new_rating(rating_p2, rating_p1, -(s-1))
+                    rating_p1 = self.ratings[p1_idx]
+                    rating_p2 = self.ratings[p2_idx]
+                    self.ratings[p1_idx] = self.new_rating(rating_p1, rating_p2, s)
+                    self.ratings[p2_idx] = self.new_rating(rating_p2, rating_p1, -(s-1))
 
             eps += 1
             eps_time.update(time.time() - end)
@@ -91,7 +92,7 @@ class Tournament():
 
         results = [(p['win'], p['loss'], p['draw']) for p in results.values()]
         if rated:
-            return results, ratings
+            return results, self.ratings.copy()
         else:
             return results, None
 
@@ -99,7 +100,7 @@ class Tournament():
     def start_rating(self, r=1500):
         '''
         Returns:
-            The default rating of a new player (default 1000).
+            The default rating of a new player (default 1500).
         '''
         return r
 
@@ -110,7 +111,7 @@ class Tournament():
             eloA: Rating of player A.
             eloB: Rating of player B.
             s: Game result (win=1, draw=0.5, loss=0).
-            k: maximum rating change between two evenly matched players (default 32).
+            k: maximum rating change between two evenly matched players (default 60).
         
         Returns:
             The new rating of player A.
