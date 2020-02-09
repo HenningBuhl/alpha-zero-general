@@ -43,14 +43,16 @@ class NNetWrapper(NeuralNet):
                 x=input_boards,
                 y=[target_pis, target_vs, target_pis],
                 batch_size=self.args.batch_size,
-                epochs=self.args.epochs)
+                epochs=self.args.epochs,
+                verbose=1)
         else:
             # Train the model (pi, v).
             history = self.nnet.model.fit(
                 x=input_boards,
                 y=[target_pis, target_vs],
                 batch_size=self.args.batch_size,
-                epochs=self.args.epochs)
+                epochs=self.args.epochs,
+                verbose=1)
         
         # Add trainig results to history.
         for key in history.history.keys():
@@ -74,10 +76,11 @@ class NNetWrapper(NeuralNet):
     def save_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
         filepath = os.path.join(folder, filename)
         if not os.path.exists(folder):
-            print("Checkpoint Directory does not exist! Making directory {}".format(folder))
+            #print("Checkpoint Directory does not exist! Making directory {}".format(folder))
             os.mkdir(folder)
         else:
-            print("Checkpoint Directory exists! ")
+            #print("Checkpoint Directory exists! ")
+            pass
         self.nnet.model.save_weights(filepath)
 
 
