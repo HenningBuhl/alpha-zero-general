@@ -31,7 +31,7 @@ class NNetWrapper(NeuralNet):
         self.history = {}
 
 
-    def train(self, examples):
+    def train(self, examples, verbose=1):
         input_boards, target_pis, target_vs = list(zip(*examples))
         input_boards = np.asarray(input_boards)
         target_pis = np.asarray(target_pis)
@@ -44,7 +44,7 @@ class NNetWrapper(NeuralNet):
                 y=[target_pis, target_vs, target_pis],
                 batch_size=self.args.batch_size,
                 epochs=self.args.epochs,
-                verbose=1)
+                verbose=verbose)
         else:
             # Train the model (pi, v).
             history = self.nnet.model.fit(
@@ -52,7 +52,7 @@ class NNetWrapper(NeuralNet):
                 y=[target_pis, target_vs],
                 batch_size=self.args.batch_size,
                 epochs=self.args.epochs,
-                verbose=1)
+                verbose=verbose)
         
         # Add trainig results to history.
         for key in history.history.keys():
@@ -88,6 +88,6 @@ class NNetWrapper(NeuralNet):
         # https://github.com/pytorch/examples/blob/master/imagenet/main.py#L98
         filepath = os.path.join(folder, filename)
         if not os.path.exists(filepath):
-            raise("No model in path '{}'".format(filepath))
+            raise Exception(f'No model in path \'{filepath}\'')
         self.nnet.model.load_weights(filepath)
 
