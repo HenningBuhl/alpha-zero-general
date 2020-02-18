@@ -24,7 +24,7 @@ class TicTacToeNNet():
         self.action_size = game.getActionSize()
         self.args = args
 
-        # Network parameters.
+        # Weight decay.
         self.reg = l2(self.args.weight_decay) if self.args.weight_decay else None
 
         # Input.
@@ -73,7 +73,7 @@ class TicTacToeNNet():
                 x = self.conv_block(x, i+1, prefix=prefix)
         else:
             x = Flatten(name=f'{prefix}_Flatten')(x)
-            for i, n in zip(range(2), [2**9, 2**8]):
+            for i, n in zip(range(2), [2**8, 2**7]):
                 x = self.dense_block(x, n, i, prefix=prefix)
         return x
 
@@ -83,11 +83,13 @@ class TicTacToeNNet():
         x_residual = x
         
         for i in range(self.args.block_repeats):
-            x = Conv2D(self.args.num_channels, 3, padding='same', kernel_regularizer=self.reg, name=f'{block_predix}_Conv2D_{i+1}')(x)
-            x = BatchNormalization(name=f'{block_predix}_BatchNorm_{i+1}')(x)
+            x = Conv2D(self.args.num_channels, self.args.kernel_size, padding='same', kernel_regularizer=self.reg, name=f'{block_predix}_Conv2D_{i+1}')(x)
+            if self.args.useBatchNorm:
+                x = BatchNormalization(name=f'{block_predix}_BatchNorm_{i+1}')(x)
             if i+1 == self.args.block_repeats and self.args.residual is not None:
-                x_residual = Conv2D(self.args.num_channels, 3, padding='same', kernel_regularizer=self.reg, name=f'{block_predix}_Conv2D_Residual')(x_residual)
-                x_residual = BatchNormalization(name=f'{block_predix}_BatchNorm_Residual')(x_residual)
+                x_residual = Conv2D(self.args.num_channels, self.args.kernel_size, padding='same', kernel_regularizer=self.reg, name=f'{block_predix}_Conv2D_Residual')(x_residual)
+                if self.args.useBatchNorm:
+                    x_residual = BatchNormalization(name=f'{block_predix}_BatchNorm_Residual')(x_residual)
                 if self.args.residual == 'add':
                     x = Add(name=f'{block_predix}_Add')([x, x_residual])
                 elif self.args.residual == 'concat':
@@ -101,9 +103,11 @@ class TicTacToeNNet():
     def dense_block(self, x, n, i, prefix):
         head_prefix = f'{prefix}_{i+1}'
         x = Dense(n, kernel_regularizer=self.reg, name=f'{head_prefix}_Dense')(x)
-        x = BatchNormalization(name=f'{head_prefix}_BatchNorm')(x)
+        if self.args.useBatchNorm:
+            x = BatchNormalization(name=f'{head_prefix}_BatchNorm')(x)
         x = Activation('relu', name=f'{head_prefix}_Activation')(x)
-        x = Dropout(self.args.dropout, name=f'{head_prefix}_Dropout')(x)
+        if self.args.dropout is not None and self.args.dropout > 0:
+            x = Dropout(self.args.dropout, name=f'{head_prefix}_Dropout')(x)
         return x
 
 
