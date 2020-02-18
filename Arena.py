@@ -35,26 +35,37 @@ class Arena():
         """
         players = [self.player2, None, self.player1]
         curPlayer = 1
+        curPlayerResigned = False
         board = self.game.getInitBoard()
         it = 0
-        while self.game.getGameEnded(board, curPlayer)==0:
+        while self.game.getGameEnded(board, curPlayer) == 0:
             it+=1
             if verbose:
                 assert(self.display)
                 print("Turn ", str(it), "Player ", str(curPlayer))
                 self.display(board)
-            action = players[curPlayer+1](self.game.getCanonicalForm(board, curPlayer), verbose=verbose>1)
+            player = players[curPlayer+1]
+            action, expected_outcome, resign = player.play(self.game.getCanonicalForm(board, curPlayer),
+                                                           curPlayer, verbose=verbose>1)
+            if resign: # The player resigned.
+                curPlayerResigned = True
+                break
             valids = self.game.getValidMoves(self.game.getCanonicalForm(board, curPlayer), 1)
 
             if valids[action]==0:
                 print(action)
                 assert valids[action] > 0
             board, curPlayer = self.game.getNextState(board, curPlayer, action)
+
+        if curPlayerResigned:
+            result = -curPlayer
+        else:
+            result = self.game.getGameEnded(board, 1)
         if verbose:
             assert(self.display)
-            print("Game over: Turn ", str(it), "Result ", str(self.game.getGameEnded(board, 1)))
+            print("Game over: Turn ", str(it), "Result ", str(result))
             self.display(board)
-        return self.game.getGameEnded(board, 1)
+        return result
 
     def playGames(self, num, return_s=False, verbose=False):
         """
@@ -72,12 +83,12 @@ class Arena():
         
         eps_time = AverageMeter()
         if verbose:
-            bar = Bar('Arena.playGames', max=num)
+            bar = Bar('Arena'.ljust(10, ' '), max=num)
         end = time.time()
         eps = 0
         maxeps = int(num)
 
-        num = int(num/2)
+        num = int(num/2) # Uneven numbers become the next smaller even number divided by 2.
         oneWon = 0
         twoWon = 0
         draws = 0
@@ -98,7 +109,7 @@ class Arena():
             eps_time.update(time.time() - end)
             end = time.time()
             if verbose == 1:
-                bar.suffix  = '({eps}/{maxeps}) Eps Time: {et:.3f}s | Total: {total:} | ETA: {eta:}'.format(eps=eps, maxeps=maxeps, et=eps_time.avg,
+                bar.suffix  = '({eps}/{maxeps}) Eps Time: {et:.2f}s | Total: {total:} | ETA: {eta:}'.format(eps=eps, maxeps=maxeps, et=eps_time.avg,
                                                                                                        total=bar.elapsed_td, eta=bar.eta_td)
                 bar.next()
 
@@ -121,7 +132,7 @@ class Arena():
             eps_time.update(time.time() - end)
             end = time.time()
             if verbose == 1:
-                bar.suffix  = '({eps}/{maxeps}) Eps Time: {et:.3f}s | Total: {total:} | ETA: {eta:}'.format(eps=eps, maxeps=maxeps, et=eps_time.avg,
+                bar.suffix  = '({eps}/{maxeps}) Eps Time: {et:.2f}s | Total: {total:} | ETA: {eta:}'.format(eps=eps, maxeps=maxeps, et=eps_time.avg,
                                                                                                        total=bar.elapsed_td, eta=bar.eta_td)
                 bar.next()
 

@@ -30,8 +30,11 @@ class MCTS():
         """
         
         start = time.time()
+        sum_v = 0
+        actual_sims = 0
         for i in range(self.args.numMCTSSims) if self.args.numMCTSSims is not None else itertools.count():
-            self.search(canonicalBoard, True)
+            actual_sims += 1
+            sum_v += self.search(canonicalBoard, rootNode=True)
             elapsed = time.time() - start
             if self.args.maxTime is not None and elapsed > self.args.maxTime:
                 break
@@ -47,9 +50,10 @@ class MCTS():
             counts = [x**(1./temp) for x in counts]
             counts_sum = float(sum(counts))
             probs = [x/counts_sum for x in counts]
-        return probs
+        return probs, sum_v / actual_sims
 
-    def search(self, canonicalBoard, rootNode=False):
+
+    def search(self, canonicalBoard, depth=0, rootNode=False):
         """
         This function performs one iteration of MCTS. It is recursively called
         till a leaf node is found. The action chosen at each node is one that
@@ -68,20 +72,37 @@ class MCTS():
         Returns:
             v: the negative of the value of the current canonicalBoard
         """
-
+        
         s = self.game.stringRepresentation(canonicalBoard)
 
         if s not in self.Es:
             self.Es[s] = self.game.getGameEnded(canonicalBoard, 1)
-        if self.Es[s]!=0:
+        if self.Es[s] != 0:
             # Terminal node.
-            return -int(self.Es[s])
+            return -self.Es[s]
+
+        if self.args.maxDepth is not None and depth == self.args.maxDepth: # Max depth reached.
+            #print(f'ABORT MCTS: MAX DEPTH REACHED')
+            return 0 # Game ongoing.
 
         if s not in self.Ps:
             # Leaf node.
             valids = self.game.getValidMoves(canonicalBoard, 1)
 
-            if self.args.rollout == 'random':
+            if self.args.rollout == 'single':
+                self.Ps[s], v = self.nnet.predict(canonicalBoard)
+                self.Ps[s] = self.Ps[s] * valids # masking invalid moves
+                sum_Ps_s = np.sum(self.Ps[s])
+                if sum_Ps_s > 0:
+                    self.Ps[s] /= sum_Ps_s # renormalize
+                else:
+                    # if all valid moves were masked make all valid moves equally probable
+                    # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
+                    # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.   
+                    print("All valid moves were masked, do workaround.")
+                    self.Ps[s] = self.Ps[s] + valids
+                    self.Ps[s] /= np.sum(self.Ps[s])
+            elif self.args.rollout == 'random':
                 self.Ps[s] = valids / np.sum(valids)
                 board = canonicalBoard
                 cur_player = 1
@@ -94,19 +115,6 @@ class MCTS():
                         break
                     cur_player = next_player
                 v = r
-            elif self.args.rollout == 'single':
-                self.Ps[s], v = self.nnet.predict(canonicalBoard)
-                self.Ps[s] = self.Ps[s]*valids # masking invalid moves
-                sum_Ps_s = np.sum(self.Ps[s])
-                if sum_Ps_s > 0:
-                    self.Ps[s] /= sum_Ps_s # renormalize
-                else:
-                    # if all valid moves were masked make all valid moves equally probable
-                    # NB! All valid moves may be masked if either your NNet architecture is insufficient or you've get overfitting or something else.
-                    # If you have got dozens or hundreds of these messages you should pay attention to your NNet and/or training process.   
-                    print("All valid moves were masked, do workaround.")
-                    self.Ps[s] = self.Ps[s] + valids
-                    self.Ps[s] /= np.sum(self.Ps[s])
             elif self.args.rollout == 'fast':
                 self.Ps[s] = valids / np.sum(valids)
                 board = canonicalBoard
@@ -121,7 +129,9 @@ class MCTS():
                     if r != 0:
                         break
                     cur_player = next_player
-                v = r
+                _, v = self.nnet.predict(board)
+                lmbda = self.args.lambdaWeight
+                v = (1 - lmbda) * v + lmbda * r
             elif self.args.rollout == 'slow':
                 self.Ps[s] = valids / np.sum(valids)
                 board = canonicalBoard
@@ -136,7 +146,7 @@ class MCTS():
                     if r != 0:
                         break
                     cur_player = next_player
-                v = r            
+                v = r
             else:
                 raise ValueError(f'rollout \'{self.args.rollout}\' is not supported.')
 
@@ -177,7 +187,7 @@ class MCTS():
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
 
-        v = self.search(next_s)
+        v = self.search(next_s, depth=depth+1)
 
         if (s,a) in self.Qsa:
             self.Qsa[(s,a)] = (self.Nsa[(s,a)]*self.Qsa[(s,a)] + v)/(self.Nsa[(s,a)]+1)
@@ -187,5 +197,5 @@ class MCTS():
             self.Nsa[(s,a)] = 1
 
         self.Ns[s] += 1
-        return -int(v)
+        return -v
 
