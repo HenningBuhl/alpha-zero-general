@@ -4,6 +4,8 @@ import time
 from itertools import combinations
 from Arena import Arena
 from utils import *
+import random
+
 
 class Tournament():
     '''
@@ -19,16 +21,20 @@ class Tournament():
         Returns:
             An instance of the class.
         '''
-        self.players = players
+        self.players = players.copy()
         self.ratings = None
         self.game = game
         self.display = display
 
 
-    def compete(self, num, rated=False, reset_ratings=False, verbose=False):
+    def compete(self, num, rounds=1, rated=False, reset_ratings=False, verbose=False):
         '''
+        Hosts a tournament between all players. All Participants are shuffled
+        in each call.
+
         Args:
-            num: Number of games player per pair.
+            num: Number of games played per pair.
+            rounds: Number of rounds per tournament.
             rated: Whether to calculate elo (default False).
             reset_ratings: Whether to reset the ratings (default False).
             verbose: Whether to print progress (default False).
@@ -41,58 +47,61 @@ class Tournament():
         end = time.time()
         eps = 0
         maxeps = 0
-        for i in combinations(self.players, 2): maxeps += 1
+
+        p_idx = np.arange(0, len(self.players))
+        arena_pairs = list(combinations(p_idx, 2))
+        maxeps = len(arena_pairs) * rounds
         if verbose == 1:
-            bar = Bar('Tournament.compete', max=maxeps)
-        
+            bar = Bar('Tournament'.ljust(10, ' '), max=maxeps)
+
         if reset_ratings or self.ratings is None:
             self.ratings = np.full(len(self.players), self.start_rating())
-        
-        results = {}
+
+        results = []
         for p in (self.players):
-            results[p] = {'win': 0, 'loss': 0, 'draw': 0}
+            results.append({'win': 0, 'loss': 0, 'draw': 0})
 
-        for p1, p2 in combinations(self.players, 2):
-            if verbose >= 2:
-                print(f'Pitting {p1} vs {p2}.')
-            arena = Arena(p1, p2, self.game, self.display)
-            p1_win, p2_win, draw, ss = arena.playGames(num, return_s=True, verbose=verbose-1 if verbose>0 else 0)
+        for r in range(rounds):
+            random.shuffle(arena_pairs)
+            for p1_idx, p2_idx in arena_pairs:
+                p1 = self.players[p1_idx]
+                p2 = self.players[p2_idx]
+                if verbose >= 2:
+                    print(f'Pitting {p1.name} vs {p2.name}.')
+                arena = Arena(p1, p2, self.game, self.display)
+                p1_win, p2_win, draw, ss = arena.playGames(num, return_s=True, verbose=verbose-1 if verbose>0 else 0)
 
-            # List indices.
-            p1_idx = self.players.index(p1)
-            p2_idx = self.players.index(p2)
+                # Update metrics of player 1.
+                results[p1_idx]['win'] += p1_win
+                results[p1_idx]['loss'] += p2_win
+                results[p1_idx]['draw'] += draw
 
-            # Update metrics of player 1.
-            results[p1]['win'] += p1_win
-            results[p1]['loss'] += p2_win
-            results[p1]['draw'] += draw
+                # Update metrics of player 2.
+                results[p2_idx]['win'] += p2_win
+                results[p2_idx]['loss'] += p1_win
+                results[p2_idx]['draw'] += draw
 
-            # Update metrics of player 2.
-            results[p2]['win'] += p2_win
-            results[p2]['loss'] += p1_win
-            results[p2]['draw'] += draw
+                if rated:
+                    for s in ss:
+                        rating_p1 = self.ratings[p1_idx]
+                        rating_p2 = self.ratings[p2_idx]
+                        self.ratings[p1_idx] = self.new_rating(rating_p1, rating_p2, s)
+                        self.ratings[p2_idx] = self.new_rating(rating_p2, rating_p1, -(s-1))
 
-            if rated:
-                for s in ss:
-                    rating_p1 = self.ratings[p1_idx]
-                    rating_p2 = self.ratings[p2_idx]
-                    self.ratings[p1_idx] = self.new_rating(rating_p1, rating_p2, s)
-                    self.ratings[p2_idx] = self.new_rating(rating_p2, rating_p1, -(s-1))
-
-            eps += 1
-            eps_time.update(time.time() - end)
-            end = time.time()
-            if verbose == 1:
-                bar.suffix  = '({eps}/{maxeps}) Eps Time: {et:.3f}s | Total: {total:} | ETA: {eta:}'.format(eps=eps, maxeps=maxeps, et=eps_time.avg,
-                                                                                                       total=bar.elapsed_td, eta=bar.eta_td)
-                bar.next()
+                eps += 1
+                eps_time.update(time.time() - end)
+                end = time.time()
+                if verbose == 1:
+                    bar.suffix  = '({eps}/{maxeps}) Eps Time: {et:.2f}s | Total: {total:} | ETA: {eta:}'.format(eps=eps, maxeps=maxeps, et=eps_time.avg,
+                                                                                                        total=bar.elapsed_td, eta=bar.eta_td)
+                    bar.next()
 
         if verbose == 1:
             bar.finish()
 
-        results = [(p['win'], p['loss'], p['draw']) for p in results.values()]
+        results = [(result['win'], result['loss'], result['draw']) for result in results]
         if rated:
-            return results, self.ratings.copy()
+            return results, np.array([rating for rating in self.ratings])
         else:
             return results, None
 
