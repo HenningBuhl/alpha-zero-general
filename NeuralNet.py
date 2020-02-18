@@ -11,7 +11,7 @@ class NeuralNet():
     def __init__(self, game):
         pass
 
-    def train(self, examples):
+    def train(self, examples, verbose=1):
         """
         This function trains the neural network with examples obtained from
         self-play.
