@@ -24,7 +24,7 @@ class Player():
         if self.name is None:
             self.name = type(self).__name__ # Default name equals class name.
 
-    def reset():
+    def reset(self):
         '''
         Reset any data that is created/expanded while playing.
         '''
@@ -79,7 +79,7 @@ class RandomPlayer(Player):
         super(RandomPlayer, self).__init__(game, args=args, name=name, verbose=verbose)
 
     def play(self, board, curPlayer, verbose=None):
-        verbose = get_verbose(verbose=verbose)
+        verbose = self.get_verbose(verbose=verbose)
         valids = self.game.getValidMoves(board, 1)
         valid_indices = [i for i, valid in enumerate(valids) if valid]
         a = np.random.choice(valid_indices) # Chose random action.
@@ -92,7 +92,7 @@ class HumanPlayer(Player):
         super(HumanPlayer, self).__init__(game, args=args, name=name, verbose=verbose)
 
     def play(self, board, curPlayer, verbose=None):
-        verbose = get_verbose(verbose=verbose)
+        verbose = self.get_verbose(verbose=verbose)
         valid_moves = self.game.getValidMoves(board, 1)
         uf_moves = self.game.getUserFriendlyMoves(board, 1)
         print('Pass -1 into action prompt to resign.')
@@ -124,7 +124,7 @@ class GreedyPlayer(Player):
         self.player_num = 1
 
     def play(self, board, curPlayer, verbose=None):
-        verbose = get_verbose(verbose=verbose)
+        verbose = self.get_verbose(verbose=verbose)
         valid_moves = self.game.getValidMoves(board, self.player_num)
         win_move_set = set() # Actions that result in a win.
         stop_loss_move_set = set() # Actions that block a loss.
@@ -164,7 +164,7 @@ class AlphaPlayer(Player):
             self.mcts = self.MCTS(self.game, self.nnet, self.args)
 
     def play(self, board, curPlayer, return_pi=False, temp=0, verbose=None):
-        verbose = get_verbose(verbose=verbose)
+        verbose = self.get_verbose(verbose=verbose)
         if self.MCTS is not None: # AlphaPlayer or MCTSPlayer.
             pi, v = self.mcts.getActionProb(board, temp=temp)
             a = np.argmax(pi)
@@ -220,8 +220,11 @@ class ABTSPlayer(Player):
         self.abts = self.ABTS(self.game, self.args)
 
     def play(self, board, curPlayer, verbose=None):
-        verbose = get_verbose(verbose=verbose)
+        verbose = self.get_verbose(verbose=verbose)
         probs, v = self.abts.getActionProb(board)
+        if np.sum(probs) == 0: # ABTS didn't have enough time/depth to find a move.
+            vs = self.game.getValidMoves(board, 1)
+            probs = vs / np.sum(vs) # All moves are equally likely
         a = np.argmax(probs)
         resign = False
         if self.args.resignThreshold is not None:

@@ -126,3 +126,4 @@ class Game():
                          Required by MCTS for hashing.
         """
         pass
+
