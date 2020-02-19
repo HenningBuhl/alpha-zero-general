@@ -8,8 +8,9 @@ class NeuralNet():
     See othello/NNet.py for an example implementation.
     """
 
-    def __init__(self, game):
-        pass
+    def __init__(self, game, args):
+        self.game = game
+        self.args = args
 
     def train(self, examples, verbose=1):
         """
