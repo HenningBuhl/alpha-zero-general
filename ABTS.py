@@ -22,8 +22,13 @@ class ABTS():
         self.start = time.time()
         a, max_eval = self.minimax(canonicalBoard)
         probs = np.zeros(self.game.getActionSize())
-        probs[a] = 1
+        if a == -1:
+            #print('COULDN\'T FIND A MOVE. CHOOSING FIRST AVAILABLE MOVE.')
+            pass
+        else:
+            probs[a] = 1
         return probs, max_eval
+    
 
     def minimax(self, board, depth=0, currentPlayer=1, alpha=float('-inf'), beta=float('inf')):
         '''
@@ -42,33 +47,36 @@ class ABTS():
         # Game ended.
         gameEnded = self.game.getGameEnded(board, 1)
         if gameEnded:
-            return None, gameEnded
+            return -1, gameEnded
         
         # Max time reached.
         if self.args.maxTime is not None and elapsed > self.args.maxTime:
-            return None, gameEnded
+            return -1, gameEnded
 
         # Max depth reached.
         if self.args.maxDepth is not None and depth > self.args.maxDepth:
-            return None, gameEnded
+            return -1, gameEnded
         
         # Maximizing player.
         if currentPlayer == 1:
-            bestMove = None
+            bestMove = -1
             maxEval = float('-inf')
             for a, valid in enumerate(self.game.getValidMoves(board, currentPlayer)):
                 if valid:
-                    if self.args.remember: # Only remember cannonical boards (only remember for maximizing player, so that one Player object can play against itself).
+                    if self.args.remember:
                         s = self.game.stringRepresentation(board)
-                        if (s, a) in self.memory:
-                            nextBoard, nextPlayer, score = self.memory[(s, a)]
+                        if (s, a, currentPlayer) in self.memory:
+                            nextBoard, nextPlayer, score = self.memory[(s, a, currentPlayer)]
                         else:
                             nextBoard, nextPlayer = self.game.getNextState(board, currentPlayer, a)
                             _, score = self.minimax(nextBoard, depth + 1, nextPlayer, alpha, beta)
-                            self.memory[(s, a)] = (nextBoard, nextPlayer, score)
+                            self.memory[(s, a, currentPlayer)] = (nextBoard, nextPlayer, score)
                     else:
                         nextBoard, nextPlayer = self.game.getNextState(board, currentPlayer, a)
                         _, score = self.minimax(nextBoard, depth + 1, nextPlayer, alpha, beta)
+
+                    #if depth == 0:
+                    #    print(f'Action {a}, Score: {score}')
 
                     if score > maxEval:
                         bestMove = a
@@ -81,14 +89,23 @@ class ABTS():
             return bestMove, maxEval
 
         # Minimizing Player.
-        else: # player == -1
-            bestMove = None
+        else: # currentPlayer == -1
+            bestMove = -1
             minEval = float('inf')
             for a, valid in enumerate(self.game.getValidMoves(board, currentPlayer)):
                 if valid:
-                    nextBoard, nextPlayer = self.game.getNextState(board, currentPlayer, a)
-                    _, score = self.minimax(nextBoard, depth + 1, nextPlayer, alpha, beta)
-                    
+                    if self.args.remember:
+                        s = self.game.stringRepresentation(board)
+                        if (s, a, currentPlayer) in self.memory:
+                            nextBoard, nextPlayer, score = self.memory[(s, a, currentPlayer)]
+                        else:
+                            nextBoard, nextPlayer = self.game.getNextState(board, currentPlayer, a)
+                            _, score = self.minimax(nextBoard, depth + 1, nextPlayer, alpha, beta)
+                            self.memory[(s, a, currentPlayer)] = (nextBoard, nextPlayer, score)
+                    else:
+                        nextBoard, nextPlayer = self.game.getNextState(board, currentPlayer, a)
+                        _, score = self.minimax(nextBoard, depth + 1, nextPlayer, alpha, beta)
+
                     if score < minEval:
                         bestMove = a
                         minEval = score
