@@ -109,11 +109,10 @@ class MCTS():
                 while True: # Random rollout.
                     vs = self.game.getValidMoves(board, cur_player)
                     a = np.random.choice(vs.shape[0], p=vs/np.sum(vs))
-                    board, next_player = self.game.getNextState(board, cur_player, a)
-                    r = self.game.getGameEnded(board, 1)
+                    board, cur_player = self.game.getNextState(board, cur_player, a)
+                    r = self.game.getGameEnded(board, cur_player)
                     if r != 0:
                         break
-                    cur_player = next_player
                 v = r
             elif self.args.rollout == 'fast':
                 self.Ps[s] = valids / np.sum(valids)
@@ -124,11 +123,10 @@ class MCTS():
                     pi_fast = self.nnet.predict_fast(board)
                     pi_fast = pi_fast * vs
                     a = np.random.choice(vs.shape[0], p=pi_fast/np.sum(pi_fast))
-                    board, next_player = self.game.getNextState(board, cur_player, a)
-                    r = self.game.getGameEnded(board, 1)
+                    board, cur_player = self.game.getNextState(board, cur_player, a)
+                    r = self.game.getGameEnded(board, cur_player)
                     if r != 0:
                         break
-                    cur_player = next_player
                 _, v = self.nnet.predict(board)
                 lmbda = self.args.lambdaWeight
                 v = (1 - lmbda) * v + lmbda * r
@@ -141,11 +139,10 @@ class MCTS():
                     pi, _ = self.nnet.predict(board)
                     pi = pi * vs
                     a = np.random.choice(vs.shape[0], p=pi/np.sum(pi))
-                    board, next_player = self.game.getNextState(board, cur_player, a)
-                    r = self.game.getGameEnded(board, 1)
+                    board, cur_player = self.game.getNextState(board, cur_player, a)
+                    r = self.game.getGameEnded(board, cur_player)
                     if r != 0:
                         break
-                    cur_player = next_player
                 v = r
             else:
                 raise ValueError(f'rollout \'{self.args.rollout}\' is not supported.')
