@@ -60,12 +60,11 @@ class Arena():
         if curPlayerResigned:
             result = -curPlayer
         else:
-            result = self.game.getGameEnded(board, 1)
+            result = curPlayer*self.game.getGameEnded(board, curPlayer)
         if verbose:
             assert(self.display)
             print("Game over: Turn ", str(it), "Result ", str(result))
             self.display(board)
-        return result
 
     def playGames(self, num, return_s=False, verbose=False):
         """
