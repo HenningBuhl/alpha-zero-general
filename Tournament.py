@@ -4,7 +4,6 @@ import time
 from itertools import combinations
 from Arena import Arena
 from utils import *
-import random
 
 
 class Tournament():
@@ -62,7 +61,7 @@ class Tournament():
             results.append({'win': 0, 'loss': 0, 'draw': 0})
 
         for r in range(rounds):
-            random.shuffle(arena_pairs)
+            np.random.shuffle(arena_pairs)
             for p1_idx, p2_idx in arena_pairs:
                 p1 = self.players[p1_idx]
                 p2 = self.players[p2_idx]
