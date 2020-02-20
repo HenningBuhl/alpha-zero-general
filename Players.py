@@ -168,10 +168,8 @@ class AlphaPlayer(Player):
         verbose = self.get_verbose(verbose=verbose)
         if self.MCTS is not None: # AlphaPlayer or MCTSPlayer.
             pi, v = self.mcts.getActionProb(board, temp=temp, customInputData=customInputData)
+            v *= -1 # Convert MCTS (nextPlayer) v into back into cannonical v (currentPlayer)
             a = np.argmax(pi)
-                # Save time and don't calculate v is resignation is disabled?
-                _, v = self.nnet.predict(board)
-                v = v[0] # Convert [v] into v.
         else: # RawAlphaPlayer.
             if self.game.args.useCustomInput:
                 pi, v = self.nnet.predict(customInputData[1])
