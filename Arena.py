@@ -38,19 +38,31 @@ class Arena():
         curPlayerResigned = False
         board = self.game.getInitBoard()
         it = 0
+        # Custom Input.
+        boardHistory = []
+        customInput = None
         while self.game.getGameEnded(board, curPlayer) == 0:
             it+=1
             if verbose:
                 assert(self.display)
-                print("Turn ", str(it), "Player ", str(curPlayer))
                 self.display(board)
+                print('------------------------------')
+                print(f"Turn {it}: {players[curPlayer+1].name}'s turn (Player {curPlayer}).")
             player = players[curPlayer+1]
-            action, expected_outcome, resign = player.play(self.game.getCanonicalForm(board, curPlayer),
-                                                           curPlayer, verbose=verbose>1)
+            cannonicalBoard = self.game.getCanonicalForm(board, curPlayer)
+            if self.game.args.useCustomInput:
+                boardHistory, customInput = self.game.getCustomInput(cannonicalBoard,
+                                                                     curPlayer,
+                                                                     boardHistory,
+                                                                     customInput)
+            action, expected_outcome, resign = player.play(cannonicalBoard,
+                                                           curPlayer,
+                                                           verbose=verbose>1,
+                                                           customInputData=(boardHistory, customInput))
             if resign: # The player resigned.
                 curPlayerResigned = True
                 break
-            valids = self.game.getValidMoves(self.game.getCanonicalForm(board, curPlayer), 1)
+            valids = self.game.getValidMoves(cannonicalBoard, 1)
 
             if valids[action]==0:
                 print(action)
@@ -60,11 +72,15 @@ class Arena():
         if curPlayerResigned:
             result = -curPlayer
         else:
-            result = curPlayer*self.game.getGameEnded(board, curPlayer)
+            result = curPlayer * self.game.getGameEnded(board, curPlayer)
         if verbose:
             assert(self.display)
-            print("Game over: Turn ", str(it), "Result ", str(result))
             self.display(board)
+            if int(result) != 0: # A player won, the other lost.
+                print(f'Game Over: {players[result+1].name} won on turn {it} (Result: {result}).')
+            else:
+                print(f'Game drawn on turn {it} (Result: {result}).')
+        return result
 
     def playGames(self, num, return_s=False, verbose=False):
         """

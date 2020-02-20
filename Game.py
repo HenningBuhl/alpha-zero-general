@@ -1,3 +1,6 @@
+import numpy as np
+from collections import deque
+
 class Game():
     """
     This class specifies the base Game class. To define your own game, subclass
@@ -8,8 +11,8 @@ class Game():
 
     See othello/OthelloGame.py for an example implementation.
     """
-    def __init__(self):
-        pass
+    def __init__(self, args):
+        self.args = args
 
     def getInitBoard(self):
         """
@@ -126,4 +129,78 @@ class Game():
                          Required by MCTS for hashing.
         """
         pass
+
+    def getCustomInputShape(self):
+        _, dummy_input = self.getCustomInput(np.zeros(self.getBoardSize()), 1)
+        return dummy_input.shape
+
+    def getCustomInput(self, cannonicalBoard, curPlayer, boardHistory=None, prevCannonicalView=None):
+        '''
+        Standard implementation of custom input construction with:
+            - numBoardHistory
+            - splitPlayerPieces
+            - reverseBoardOrder
+            - rotatePlayerBoard
+            - usePlayerChannel
+        Functional due to thread and process safety.
+
+        Args:
+            cannonicalBoard: The current cannonical board.
+            curPlayer: The current player.
+            boardHistory: The previous states of the board from the absolute view point (default None).
+            prevCannonicalView: The previous cannonical view.
+
+        Returns:
+            A tuple containing (boardHistory, cannonicalView)
+        '''
+        # Convert cannonicalBoard into absolute board view.
+        board = cannonicalBoard * curPlayer
+
+        # First move of the game.
+        if boardHistory is None or len(boardHistory) == 0:
+            numPieces = 2 if self.args.splitPlayerPieces else 1
+            numChannels = (self.args.numBoardHistory + 1) * numPieces + self.args.usePlayerChannel # numBoardHistory=0 means only 2 channes + an additional channel for curPlayerChannel.
+            custom_input_shape = (numChannels, *self.getBoardSize()) # Custom input shape.
+            boardHistory = deque([np.zeros(self.getBoardSize()) for _ in range(self.args.numBoardHistory+1)], maxlen=self.args.numBoardHistory+1)
+        else:
+            custom_input_shape = prevCannonicalView.shape
+
+        # Add new board to boardHistory deque.
+        newBoardHistory = boardHistory.copy()
+        newBoardHistory.appendleft(board)
+
+        # Create cannonicalView.
+        cannonicalView = []
+
+        # Create cannonical history.
+        cannonicalHistory = [b * (1 if self.args.usePlayerChannel else curPlayer) for b in newBoardHistory]
+
+        # Add board channels to cannonicalView.
+        for b in cannonicalHistory:
+            if self.args.splitPlayerPieces:
+                players = [1, -1] if self.args.usePlayerChannel else [curPlayer, -curPlayer]
+                for piece in players:
+                    pieceChannel = np.array(b == piece) # Convert bool to float? Print dtype of b...
+                    cannonicalView.append(pieceChannel)
+            else:
+                cannonicalView.append(self.getCanonicalForm(b, curPlayer))
+
+        # Rotate board 180° for player -1.
+        if self.args.rotatePlayerBoard and curPlayer == -1:
+            cannonicalView = [np.rot90(b, k=2) for b in cannonicalView]
+        
+        # Reverse board order.
+        if self.args.reverseBoardOrder:
+            cannonicalView = cannonicalView[::-1]
+
+        # Add playerChannel.
+        if self.args.usePlayerChannel:
+            curPlayerChannel = np.full(self.getBoardSize(), int(curPlayer > 0))
+            cannonicalView.append(curPlayerChannel)
+        
+        # Construct cannonicalView.
+        cannonicalView = np.stack(cannonicalView, axis=0)
+
+        assert cannonicalView.shape == custom_input_shape
+        return newBoardHistory, cannonicalView
 

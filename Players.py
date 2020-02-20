@@ -30,12 +30,13 @@ class Player():
         '''
         pass
 
-    def play(self, board, curPlayer, verbose=False):
+    def play(self, board, curPlayer, verbose=False, customInputData=None):
         '''
         Args:
-            board: The current board.
+            board: The cannoncal board.
             curPlayer: The current player.
             verbose: Whether to output information about the decision process (default False).
+            customInputData: custom board view used by Neural Network when args.useCustomInput is True (default None).
         
         Returns:
             A tuple of (best_action, expected_outcome, resign).
@@ -65,7 +66,7 @@ class Player():
         if verbose:
             if v is not None:
                 # Print expected outcome.
-                print(f'{self.name}\'s outcome prediction: {v}')
+                print(f'{self.name}\'s outcome prediction: {v} (absolute view)')
             if r:
                 # Print whether the player resigned the game.
                 print(f'{self.name} resigned the game.')
@@ -78,7 +79,7 @@ class RandomPlayer(Player):
     def __init__(self, game, args=None, name=None, verbose=False):
         super(RandomPlayer, self).__init__(game, args=args, name=name, verbose=verbose)
 
-    def play(self, board, curPlayer, verbose=None):
+    def play(self, board, curPlayer, verbose=None, customInputData=None):
         verbose = self.get_verbose(verbose=verbose)
         valids = self.game.getValidMoves(board, 1)
         valid_indices = [i for i, valid in enumerate(valids) if valid]
@@ -91,7 +92,7 @@ class HumanPlayer(Player):
     def __init__(self, game, args=None, name=None, verbose=False):
         super(HumanPlayer, self).__init__(game, args=args, name=name, verbose=verbose)
 
-    def play(self, board, curPlayer, verbose=None):
+    def play(self, board, curPlayer, verbose=None, customInputData=None):
         verbose = self.get_verbose(verbose=verbose)
         valid_moves = self.game.getValidMoves(board, 1)
         uf_moves = self.game.getUserFriendlyMoves(board, 1)
@@ -123,7 +124,7 @@ class GreedyPlayer(Player):
         super(GreedyPlayer, self).__init__(game, args=args, name=name, verbose=verbose)
         self.player_num = 1
 
-    def play(self, board, curPlayer, verbose=None):
+    def play(self, board, curPlayer, verbose=None, customInputData=None):
         verbose = self.get_verbose(verbose=verbose)
         valid_moves = self.game.getValidMoves(board, self.player_num)
         win_move_set = set() # Actions that result in a win.
@@ -163,17 +164,19 @@ class AlphaPlayer(Player):
         if self.MCTS is not None:
             self.mcts = self.MCTS(self.game, self.nnet, self.args)
 
-    def play(self, board, curPlayer, return_pi=False, temp=0, verbose=None):
+    def play(self, board, curPlayer, return_pi=False, temp=0, verbose=None, customInputData=None):
         verbose = self.get_verbose(verbose=verbose)
         if self.MCTS is not None: # AlphaPlayer or MCTSPlayer.
-            pi, v = self.mcts.getActionProb(board, temp=temp)
+            pi, v = self.mcts.getActionProb(board, temp=temp, customInputData=customInputData)
             a = np.argmax(pi)
-            if self.nnet is not None: # AlphaPlayer.
                 # Save time and don't calculate v is resignation is disabled?
                 _, v = self.nnet.predict(board)
                 v = v[0] # Convert [v] into v.
-        else: # RawAlphaPlayer
-            pi, v = self.nnet.predict(board)
+        else: # RawAlphaPlayer.
+            if self.game.args.useCustomInput:
+                pi, v = self.nnet.predict(customInputData[1])
+            else:
+                pi, v = self.nnet.predict(board)
             v = v[0] # Convert [v] into v.
             valids = self.game.getValidMoves(board, 1)
             pi *= valids
@@ -219,7 +222,7 @@ class ABTSPlayer(Player):
     def reset(self):
         self.abts = self.ABTS(self.game, self.args)
 
-    def play(self, board, curPlayer, verbose=None):
+    def play(self, board, curPlayer, verbose=None, customInputData=None):
         verbose = self.get_verbose(verbose=verbose)
         probs, v = self.abts.getActionProb(board)
         if np.sum(probs) == 0: # ABTS didn't have enough time/depth to find a move.

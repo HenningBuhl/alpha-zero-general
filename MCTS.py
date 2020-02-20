@@ -19,7 +19,7 @@ class MCTS():
         self.Es = {}        # stores game.getGameEnded ended for board s
         self.Vs = {}        # stores game.getValidMoves for board s
 
-    def getActionProb(self, canonicalBoard, temp=1):
+    def getActionProb(self, canonicalBoard, temp=1, customInputData=None):
         """
         This function performs numMCTSSims simulations of MCTS starting from
         canonicalBoard.
@@ -34,7 +34,7 @@ class MCTS():
         actual_sims = 0
         for i in range(self.args.numMCTSSims) if self.args.numMCTSSims is not None else itertools.count():
             actual_sims += 1
-            sum_v += self.search(canonicalBoard, rootNode=True)
+            sum_v += self.search(canonicalBoard, depth=0, rootNode=True, customInputData=customInputData)
             elapsed = time.time() - start
             if self.args.maxTime is not None and elapsed > self.args.maxTime:
                 break
@@ -53,7 +53,7 @@ class MCTS():
         return probs, sum_v / actual_sims
 
 
-    def search(self, canonicalBoard, depth=0, rootNode=False):
+    def search(self, canonicalBoard, depth=0, rootNode=False, customInputData=None):
         """
         This function performs one iteration of MCTS. It is recursively called
         till a leaf node is found. The action chosen at each node is one that
@@ -90,7 +90,12 @@ class MCTS():
             valids = self.game.getValidMoves(canonicalBoard, 1)
 
             if self.args.rollout == 'single':
-                self.Ps[s], v = self.nnet.predict(canonicalBoard)
+                if self.game.args.useCustomInput:
+                    boardHistory, customInput = customInputData
+                    self.Ps[s], v = self.nnet.predict(customInput)
+                else:
+                    self.Ps[s], v = self.nnet.predict(canonicalBoard)
+                v = v[0]
                 self.Ps[s] = self.Ps[s] * valids # masking invalid moves
                 sum_Ps_s = np.sum(self.Ps[s])
                 if sum_Ps_s > 0:
@@ -110,7 +115,7 @@ class MCTS():
                     vs = self.game.getValidMoves(board, cur_player)
                     a = np.random.choice(vs.shape[0], p=vs/np.sum(vs))
                     board, cur_player = self.game.getNextState(board, cur_player, a)
-                    r = self.game.getGameEnded(board, cur_player)
+                    r = cur_player*self.game.getGameEnded(board, cur_player)
                     if r != 0:
                         break
                 v = r
@@ -118,34 +123,50 @@ class MCTS():
                 self.Ps[s] = valids / np.sum(valids)
                 board = canonicalBoard
                 cur_player = 1
+                if self.game.useCustomInput:
+                    _, v = self.nnet.predict(customInputData[1])
+                else:
+                    _, v = self.nnet.predict(board)
+                v = v[0]
                 while True: # Fast rollout.
                     vs = self.game.getValidMoves(board, cur_player)
                     pi_fast = self.nnet.predict_fast(board)
                     pi_fast = pi_fast * vs
                     a = np.random.choice(vs.shape[0], p=pi_fast/np.sum(pi_fast))
                     board, cur_player = self.game.getNextState(board, cur_player, a)
-                    r = self.game.getGameEnded(board, cur_player)
+                    r = cur_player*self.game.getGameEnded(board, cur_player)
                     if r != 0:
                         break
-                _, v = self.nnet.predict(board)
                 lmbda = self.args.lambdaWeight
                 v = (1 - lmbda) * v + lmbda * r
             elif self.args.rollout == 'slow':
                 self.Ps[s] = valids / np.sum(valids)
                 board = canonicalBoard
                 cur_player = 1
+                if self.game.args.useCustomInput:
+                    boardHistory, customInput = customInputData
+                    _, v = self.nnet.predict(customInput)
+                else:
+                    _, v = self.nnet.predict(board)
+                v = v[0]
                 while True: # Slow rollout.
                     vs = self.game.getValidMoves(board, cur_player)
-                    pi, _ = self.nnet.predict(board)
+                    if self.game.args.useCustomInput:
+                        pi, _ = self.nnet.predict(customInput)
+                    else:
+                        pi, _ = self.nnet.predict(board)
                     pi = pi * vs
                     a = np.random.choice(vs.shape[0], p=pi/np.sum(pi))
                     board, cur_player = self.game.getNextState(board, cur_player, a)
-                    r = self.game.getGameEnded(board, cur_player)
+                    if self.game.args.useCustomInput:
+                        boardHistory, customInput = self.game.getCustomInput(board, cur_player, boardHistory, customInput)
+                    r = cur_player*self.game.getGameEnded(board, cur_player)
                     if r != 0:
                         break
-                v = r
+                lmbda = self.args.lambdaWeight
+                v = (1 - lmbda) * v + lmbda * r
             else:
-                raise ValueError(f'rollout \'{self.args.rollout}\' is not supported.')
+                raise ValueError(f'rollout {self.args.rollout} is not supported.')
 
             self.Vs[s] = valids
             self.Ns[s] = 0
@@ -183,8 +204,12 @@ class MCTS():
         a = best_act
         next_s, next_player = self.game.getNextState(canonicalBoard, 1, a)
         next_s = self.game.getCanonicalForm(next_s, next_player)
+        if self.game.args.useCustomInput:
+            boardHistory, customInput = customInputData
+            boardHistory, customInput = self.game.getCustomInput(next_s, next_player, boardHistory, customInput)
+            customInputData = (boardHistory, customInput)
 
-        v = self.search(next_s, depth=depth+1)
+        v = self.search(next_s, depth=depth+1, customInputData=customInputData)
 
         if (s,a) in self.Qsa:
             self.Qsa[(s,a)] = (self.Nsa[(s,a)]*self.Qsa[(s,a)] + v)/(self.Nsa[(s,a)]+1)

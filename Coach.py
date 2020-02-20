@@ -52,15 +52,23 @@ class Coach():
         board = self.game.getInitBoard()
         self.curPlayer = 1
         episodeStep = 0
+        # Custom Input variables.
+        boardHistory = []
+        customInput = None
 
         while True:
             episodeStep += 1
             canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
+            if self.game.args.useCustomInput: # Construct custom input.
+                boardHistory, customInput = self.game.getCustomInput(canonicalBoard, self.curPlayer, boardHistory, customInput)
+            _, _, resign, pi = self.player.play(canonicalBoard, self.curPlayer, return_pi=True, temp=temp, customInputData=(boardHistory, customInput))
 
-            _, _, resign, pi = self.player.play(canonicalBoard, self.curPlayer, return_pi=True, temp=temp)
             if self.args.useSymmetry:
-                sym = self.game.getSymmetries(canonicalBoard, pi)
+                if self.game.args.useCustomInput:
+                    sym = self.game.getCustomSymmetries(customInput, pi)
+                else:
+                    sym = self.game.getSymmetries(canonicalBoard, pi)
                 if self.args.uniqueSymmetry: # Removes duplicate symmetries.
                     #print(f'SYMMETRIES BEFORE DUPLICATE REMOVAL: {len(sym)}')
                     #for b, p in sym: self.game.display(b)
@@ -73,7 +81,10 @@ class Coach():
                 for b, p in sym:
                     trainExamples.append([b, self.curPlayer, p, None])
             else:
-                trainExamples.append([canonicalBoard, self.curPlayer, pi, None])
+                if self.game.args.useCustomInput:
+                    trainExamples.append([customInput, self.curPlayer, pi, None])
+                else:
+                    trainExamples.append([canonicalBoard, self.curPlayer, pi, None])
 
             action = np.random.choice(len(pi), p=pi)
             board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
@@ -192,7 +203,7 @@ class Coach():
                 if verbose:
                     print(f'\tResult: {result}', end='')
                     if wins > 0: # nwins+pwins is not 0. Can be used in denominator.
-                        print(f' - Winrate: {nwins/(wins):.2f}')
+                        print(f' - Winrate: {100*nwins/(wins):.0f}%')
                     else:
                         print('') # Finish line.
 
