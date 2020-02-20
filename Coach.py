@@ -66,7 +66,7 @@ class Coach():
                     #for b, p in sym: self.game.display(b)
                     unique_sym = []
                     for b, p in sym:
-                        if np.array([np.array_equal(b, _b) for (_b, _) in unique_sym]).sum() == 0: # If not yet in unique_sym.
+                        if np.array([np.array_equal(p, _p) for (_, _p) in unique_sym]).sum() == 0: # If not yet in unique_sym.
                             unique_sym.append((b, p))
                     sym = unique_sym
                     #print(f'SYMMETRIES AFTER DUPLICATE REMOVAL: {len(sym)}')
