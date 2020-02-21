@@ -82,7 +82,7 @@ class Arena():
                 print(f'Game drawn on turn {it} (Result: {result}).')
         return result
 
-    def playGames(self, num, return_s=False, verbose=False):
+    def playGames(self, num, return_s=False, switch_players=True, verbose=False):
         """
         Plays num games in which player1 starts num/2 games and player2 starts
         num/2 games.
@@ -101,7 +101,7 @@ class Arena():
             bar = Bar('Arena'.ljust(10, ' '), max=num)
         end = time.time()
         eps = 0
-        maxeps = int(num)
+        maxeps = int(num//2*2)
 
         num = int(num/2) # Uneven numbers become the next smaller even number divided by 2.
         oneWon = 0
@@ -128,7 +128,10 @@ class Arena():
                                                                                                        total=bar.elapsed_td, eta=bar.eta_td)
                 bar.next()
 
-        self.player1, self.player2 = self.player2, self.player1
+        if switch_players:
+            self.player1, self.player2 = self.player2, self.player1
+        else:
+            oneWon, twoWon = twoWon, oneWon
         
         for _ in range(num):
             gameResult = self.playGame(verbose=verbose-1 if verbose > 0 else 0)
@@ -154,6 +157,11 @@ class Arena():
         if verbose == 1:
             bar.finish()
 
+        if switch_players:
+            self.player1, self.player2 = self.player2, self.player1
+        else:
+            oneWon, twoWon = twoWon, oneWon
+        
         if return_s:
             return oneWon, twoWon, draws, ss
         else:
