@@ -118,6 +118,9 @@ class Game():
                        is used when training the neural network from examples.
         """
         pass
+    
+    def getCustomSymmetries(self, customInput, pi):
+        pass
 
     def stringRepresentation(self, board):
         """
