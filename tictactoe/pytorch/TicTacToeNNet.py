@@ -19,8 +19,20 @@ class TicTacToeNNet(nn.Module):
         if self.args.rollout == 'fast':
             raise Exception('Fast policy net not supported.')
 
+        if self.args.useCustomInput:
+            customInputShape = self.game.getCustomInputShape()
+            self.input_channels = customInputShape[0]
+        else:
+            self.input_channels = 1
+        
         super(TicTacToeNNet, self).__init__()
-                
+        
+        self.conv = nn.Conv2d(in_channels=self.input_channels,
+                        out_channels=self.args.num_channels,
+                        kernel_size=self.args.kernel_size,
+                        stride=1,
+                        padding=self.args.kernel_size//2)
+        
         if self.args.dual:
             self.body = Body(self.game, self.args)
             self.head = Head(self.game, self.args)
@@ -35,19 +47,21 @@ class TicTacToeNNet(nn.Module):
             self.v_head = Head(self.game, self.args)
             self.v = V(self.game, self.args)
 
-
     def forward(self, s):
-        s = s.view(-1, 1, self.board_x, self.board_y) # Add channel dimension.
+        s = s.view(-1, self.input_channels, self.board_x, self.board_y) # Add channel dimension.
         if self.args.dual:
+            s = self.conv(s)
             s = self.body(s)
             s = self.head(s)
             pi = self.pi(s)
             v = self.v(s)
         else:
+            pi = self.conv(s)
             pi = self.pi_body(s)
             pi = self.pi_head(pi)
             pi = self.pi(pi)
 
+            v = self.conv(s)
             v = self.v_body(s)
             v = self.v_head(v)
             v = self.v(v)
@@ -62,7 +76,6 @@ class Block(nn.Module):
         super(Block, self).__init__()
         self.left = self.get_left()
         self.right = self.get_right()
-    
     
     def get_left(self):
         layers = []
@@ -79,7 +92,6 @@ class Block(nn.Module):
             if repeat+1 < self.args.block_repeats: # Add activation if not last inner block.
                 layers.append(nn.ReLU())
         return nn.ModuleList(layers)
-    
 
     def get_right(self):
         layers = []
@@ -114,7 +126,6 @@ class Block(nn.Module):
                 raise ValueError(f'Residual connection type \'{self.args.residual}\' is not supported.')
         else:
             s = s_left
-        
         return F.relu(s)
 
 
@@ -123,16 +134,9 @@ class Body(nn.Module):
         self.game = game
         self.args = args
         super(Body, self).__init__()
-        self.conv = nn.Conv2d(in_channels=1,
-                              out_channels=self.args.num_channels,
-                              kernel_size=self.args.kernel_size,
-                              stride=1,
-                              padding=self.args.kernel_size//2)
         self.blocks = nn.ModuleList([Block(self.game, self.args, i) for i in range(self.args.num_blocks)])
 
-
     def forward(self, s):
-        s = self.conv(s)
         for block in self.blocks:
             s = block(s)
         return s
@@ -153,7 +157,6 @@ class Head(nn.Module):
         else:
             self.layers = self.get_dense()
 
-
     def get_dense(self):
         layers = []
         layers.append(nn.Flatten())
@@ -165,7 +168,6 @@ class Head(nn.Module):
             if self.args.dropout > 0.:
                 layers.append(nn.Dropout(p=self.args.dropout))
         return nn.ModuleList(layers)
-
 
     def get_conv(self):
         layers = []
@@ -180,7 +182,6 @@ class Head(nn.Module):
                 layers.append(nn.BatchNorm2d(self.args.num_channels))
             layers.append(nn.ReLU())
         return nn.ModuleList(layers)
-
 
     def forward(self, s):
         for layer in self.layers:
@@ -204,8 +205,6 @@ class Pi(nn.Module):
         else:
             self.layers = nn.ModuleList([nn.Linear(self.args.dense_layers[-1], self.action_size)])
 
-
-
     def forward(self, s):
         for layer in self.layers:
             s = layer(s)
@@ -226,7 +225,6 @@ class V(nn.Module):
                                          nn.Linear(self.input_num, 1)])
         else:
             self.layers = nn.ModuleList([nn.Linear(self.input_num, 1)])
-
 
     def forward(self, s):
         for layer in self.layers:
