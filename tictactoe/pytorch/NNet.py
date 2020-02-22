@@ -22,7 +22,7 @@ import torch.multiprocessing as mp
 
 class NNetWrapper(NeuralNet):
     def __init__(self, game, args):
-        self.args = args
+        super(NNetWrapper, self).__init__(game, args)
         self.device = torch.device('cuda' if self.args.cuda else 'cpu')
         self.nnet = nnet(game, self.args).to(self.device)
         self.optimizer = optim.Adam(self.nnet.parameters(),

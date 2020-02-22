@@ -24,6 +24,7 @@ Based on (copy-pasted from) the NNet by SourKream and Surag Nair.
 
 class NNetWrapper(NeuralNet):
     def __init__(self, game, args):
+        super(NNetWrapper, self).__init__(game, args)
         self.args = args
         self.nnet = onnet(game, self.args)
         self.board_x, self.board_y = game.getBoardSize()
