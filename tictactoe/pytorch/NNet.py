@@ -5,6 +5,8 @@ import random
 import numpy as np
 import math
 import sys
+import contextlib
+
 sys.path.append('..')
 from utils import *
 from pytorch_classification.utils import Bar, AverageMeter
@@ -25,9 +27,8 @@ class NNetWrapper(NeuralNet):
         super(NNetWrapper, self).__init__(game, args)
         self.device = torch.device('cuda' if self.args.cuda else 'cpu')
         self.nnet = nnet(game, self.args).to(self.device)
-        self.optimizer = optim.Adam(self.nnet.parameters(),
-                                    lr=self.args.lr,
-                                    weight_decay=self.args.weight_decay if self.args.weight_decay is not None else 0)
+        if self.args.parallelize: # Enable multiprocessing shared memory.
+            self.nnet.share_memory()
         self.board_x, self.board_y = game.getBoardSize()
         self.action_size = game.getActionSize()
         self.history = {'loss': [],
@@ -35,17 +36,17 @@ class NNetWrapper(NeuralNet):
                         'v_loss': [],}
 
 
-    def train(self, examples, verbose=1):
+    def train(self, examples, lock=contextlib.suppress(), verbose=1):
         input_boards, target_pis, target_vs = list(zip(*examples))
         input_boards = torch.FloatTensor(input_boards).to(self.device)
         target_pis = torch.FloatTensor(target_pis).to(self.device)
         target_vs = torch.FloatTensor(target_vs).to(self.device)
         dataset = TensorDataset(input_boards, target_pis, target_vs)
-        params = {#'pin_memory': self.args.cuda, # Data is already on GPU.
+        params = {#'pin_memory': False, # Data is already on GPU.
                   'batch_size': self.args.batch_size,
-                  'shuffle': True,
+                  'shuffle': True, # Always randomize the data.
                   'drop_last': True, # Drop non-full batch size batches (BatchNorm can't handle batch_size=1)
-                  #'num_workers': 0, # Multiprocessing is done otherwise.
+                  #'num_workers': 0, # Multiprocessing is done elsewhere.
                   }
         data_loader = DataLoader(dataset, **params)
 
@@ -60,9 +61,13 @@ class NNetWrapper(NeuralNet):
         end = time.time()
         batch = 0
 
-        self.nnet.train()
+        optimizer = optim.Adam(self.nnet.parameters(),
+                               lr=self.args.lr,
+                               weight_decay=self.args.weight_decay if self.args.weight_decay is not None else 0)
+
         for epoch in range(self.args.epochs):
             for batch_idx, (boards, pi_target, v_target) in enumerate(data_loader):
+                self.nnet.train()
                 batch += 1
                 data_time.update(time.time() - end) # Measure data preparation time.
                 
@@ -80,9 +85,10 @@ class NNetWrapper(NeuralNet):
                 total_losses.update(total_loss.item(), boards.size(0))
                 
                 # Compute gradient and do optimizer step.
-                self.optimizer.zero_grad()
-                total_loss.backward()
-                self.optimizer.step()
+                with lock:
+                    optimizer.zero_grad()
+                    total_loss.backward()
+                    optimizer.step()
                 
                 # Measure elapsed time.
                 batch_time.update(time.time() - end)
@@ -116,7 +122,7 @@ class NNetWrapper(NeuralNet):
 
     def predict(self, board):
         board = torch.FloatTensor(board).to(self.device)
-        board = board.view(1, self.board_x, self.board_y)
+        board = board.view(self.nnet.input_channels, self.board_x, self.board_y)
         self.nnet.eval()
         with torch.no_grad():
             pi, v = self.nnet(board)
