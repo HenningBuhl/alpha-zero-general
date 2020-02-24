@@ -68,6 +68,9 @@ class Coach():
         
         while True:
             episodeStep += 1
+            if self.args.maxGameLength is not None and episodeStep > self.args.maxGameLength:
+                break # Maximum game depth exceeded.
+            
             canonicalBoard = self.game.getCanonicalForm(board, curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
             if self.game.args.useCustomInput: # Construct custom input.
@@ -106,7 +109,9 @@ class Coach():
                 r = self.game.getGameEnded(board, curPlayer)
 
             if r != 0:
-                return [(board, pi, int(r)*((-1)**(player!=self.curPlayer))) for (board, player, pi, v) in trainExamples]
+                break
+        
+        return [(board, pi, int(r)*((-1)**(player!=curPlayer))) for (board, player, pi, v) in trainExamples]
 
 
     def selfplayParent(self, results, messages, trainData, trainDataLock, stateValue, stateLock, checkpointLock, iterationValue, iterationLock):
