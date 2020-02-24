@@ -107,7 +107,7 @@ class HumanPlayer(Player):
             if a == -1: # HumanPlayers wants to resign
                 break
             else: # HumanPlayer wants to play an action.
-                if valid_moves[move]:
+                if valid_moves[a]:
                     break
                 else:
                     if verbose:
