@@ -60,7 +60,7 @@ class Coach():
         """
         trainExamples = []
         board = self.game.getInitBoard()
-        self.curPlayer = 1
+        curPlayer = 1
         episodeStep = 0
         # Custom Input variables.
         boardHistory = []
@@ -68,12 +68,12 @@ class Coach():
         
         while True:
             episodeStep += 1
-            canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
+            canonicalBoard = self.game.getCanonicalForm(board, curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
             if self.game.args.useCustomInput: # Construct custom input.
-                boardHistory, customInput = self.game.getCustomInput(canonicalBoard, self.curPlayer, boardHistory, customInput)
+                boardHistory, customInput = self.game.getCustomInput(canonicalBoard, curPlayer, boardHistory, customInput)
             with lock:
-                _, _, resign, pi = self.player.play(canonicalBoard, self.curPlayer, return_pi=True, temp=temp, customInputData=(boardHistory, customInput))
+                _, _, resign, pi = self.player.play(canonicalBoard, curPlayer, return_pi=True, temp=temp, customInputData=(boardHistory, customInput))
 
             if self.args.useSymmetry:
                 if self.game.args.useCustomInput:
@@ -90,20 +90,20 @@ class Coach():
                     sym = unique_sym
                     #print(f'SYMMETRIES AFTER DUPLICATE REMOVAL: {len(sym)}')
                 for b, p in sym:
-                    trainExamples.append([b, self.curPlayer, p, None])
+                    trainExamples.append([b, curPlayer, p, None])
             else:
                 if self.game.args.useCustomInput:
-                    trainExamples.append([customInput, self.curPlayer, pi, None])
+                    trainExamples.append([customInput, curPlayer, pi, None])
                 else:
-                    trainExamples.append([canonicalBoard, self.curPlayer, pi, None])
+                    trainExamples.append([canonicalBoard, curPlayer, pi, None])
 
             action = np.random.choice(len(pi), p=pi)
-            board, self.curPlayer = self.game.getNextState(board, self.curPlayer, action)
+            board, curPlayer = self.game.getNextState(board, curPlayer, action)
             
             if self.args.resignThreshold is not None and resign:
-                r = -self.curPlayer
+                r = -curPlayer
             else:
-                r = self.game.getGameEnded(board, self.curPlayer)
+                r = self.game.getGameEnded(board, curPlayer)
 
             if r != 0:
                 return [(board, pi, int(r)*((-1)**(player!=self.curPlayer))) for (board, player, pi, v) in trainExamples]
