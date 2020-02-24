@@ -1,4 +1,4 @@
-from collections import deque
+from collections import deque, OrderedDict
 from Arena import Arena
 from Tournament import Tournament
 from Players import AlphaPlayer
@@ -115,6 +115,7 @@ class Coach():
             messages.put(f'Self play iteration {i}.')
             iterData = deque([], maxlen=self.args.maxlenOfQueue)
             
+            #self.player.reset()
             for eps in range(self.args.numEps):
                 #messages.put(f'Self play episode {eps+1}')
                 self.player.reset()
@@ -128,7 +129,7 @@ class Coach():
                     trainData.pop(0)
             
             if self.args.numSelfplayWorker == 1:
-                self.saveTrainExamples(i-1)
+                self.saveTrainExamples(i)
 
             with stateLock:
                 if stateValue.value == 0:
@@ -311,7 +312,8 @@ class Coach():
                 ps.append(mp.Process(target=self.selfplayParent, args=pargs))
             for _ in range(self.args.numTrainWorker):
                 ps.append(mp.Process(target=self.trainingParent, args=pargs))
-            ps.append(mp.Process(target=self.compareParent, args=pargs)) # Only 1 compareWorker.
+            if self.args.arenaCompare is not None and self.args.tournamentCompare is not None:
+                ps.append(mp.Process(target=self.compareParent, args=pargs)) # Only 1 compareWorker.
 
             # Start processes.
             print('Start processes.')
@@ -371,8 +373,7 @@ class Coach():
                 #print("len(trainExamplesHistory) =", len(self.trainExamplesHistory), " => remove the oldest trainExamples")
                 self.trainExamplesHistory.pop(0)
             # backup history to a file
-            # NB! the examples were collected using the model from the previous iteration, so (i-1)  
-            self.saveTrainExamples(i-1)
+            self.saveTrainExamples(i)
             
             # Shuffle examples before training.
             trainExamples = []
@@ -463,22 +464,34 @@ class Coach():
         filename = os.path.join(folder, self.getCheckpointFile(iteration)+".examples")
         with open(filename, "wb+") as f:
             Pickler(f).dump(self.trainExamplesHistory)
-        f.closed
 
 
     def loadTrainExamples(self):
-        modelFile = os.path.join(self.args.load_folder_file[0], self.args.load_folder_file[1])
-        examplesFile = modelFile+".examples"
-        if not os.path.isfile(examplesFile):
-            print(examplesFile)
-            r = input("File with trainExamples not found. Continue? [y|n]")
-            if r != "y":
-                sys.exit()
-        else:
-            print("File with trainExamples found. Read it.")
-            with open(examplesFile, "rb") as f:
-                self.trainExamplesHistory = Unpickler(f).load()
-            f.closed
-            # examples based on the model were already collected (loaded)
-            self.skipFirstSelfPlay = True
+        checkpoints = self.getCheckpoints()
+        modelFile = os.path.join(self.args.checkpoint, checkpoints[list(checkpoints.keys())[-1]]) # Newest checkpoint.
+        examplesFile = modelFile + ".examples"
+        print(f'Loading training examples from: {examplesFile}')
+        with open(examplesFile, "rb") as f:
+            self.trainExamplesHistory = Unpickler(f).load()
+        self.skipFirstSelfPlay = True
+
+
+    def loadModel(self):
+        checkpoints = self.getCheckpoints()
+        modelFile = os.path.join(self.args.checkpoint, checkpoints[list(checkpoints.keys())[-1]]) # Newest checkpoint.
+        print(f'Loading model from: {modelFile}')
+        with open(modelFile, "rb") as f:
+            self.nnet.load_checkpoint(folder=self.args.checkpoint, filename=checkpoints[list(checkpoints.keys())[-1]])
+
+
+    def getCheckpoints(self):
+        checkpoints = OrderedDict()
+        for filename in os.listdir(self.args.checkpoint):
+            if filename.endswith('.pth.tar') and 'checkpoint' in filename:
+                fileID = filename
+                fileID = fileID.replace('.pth.tar', '')
+                fileID = fileID.replace('checkpoint_', '')
+                fileID = int(fileID)
+                checkpoints[fileID] = filename
+        return dict(OrderedDict(sorted(checkpoints.items())))
 
