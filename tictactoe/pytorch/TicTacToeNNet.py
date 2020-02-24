@@ -216,7 +216,8 @@ class V(nn.Module):
         self.game = game
         self.args = args
         if self.args.action2D:
-            self.input_num = self.args.num_channels * self.args.kernel_size**2
+            self.board_x, self.board_y = self.game.getBoardSize()
+            self.input_num = self.args.num_channels * self.board_x * self.board_y
         else:
             self.input_num = self.args.dense_layers[-1]
         super(V, self).__init__()
