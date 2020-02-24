@@ -31,6 +31,7 @@ class Coach():
         self.player = AlphaPlayer(self.game, self.nnet, MCTS, self.args)
         self.trainExamplesHistory = [] # history of examples from args.numItersForTrainExamplesHistory latest iterations
         self.skipFirstSelfPlay = False # can be overriden in loadTrainExamples()
+        self.iterationOffset = 0 # Continue from last iteration when loading model from disk.
 
         if self.args.parallelize:
             try:
@@ -111,7 +112,7 @@ class Coach():
     def selfplayParent(self, results, messages, trainData, trainDataLock, stateValue, stateLock, checkpointLock, iterationValue, iterationLock):
         messages.put('Self play process started.')
 
-        for i in range(1, self.args.numIters+1):
+        for i in range(1 + self.iterationOffset, self.args.numIters + 1 + self.iterationOffset):
             messages.put(f'Self play iteration {i}.')
             iterData = deque([], maxlen=self.args.maxlenOfQueue)
             
@@ -342,7 +343,7 @@ class Coach():
             self.ratings = list(results['ratings'])
             return
         
-        for i in range(1, self.args.numIters+1):
+        for i in range(1 + self.iterationOffset, self.args.numIters + 1 + self.iterationOffset):
             print(f'------ Iteration {i} ------')
             if not self.skipFirstSelfPlay or i>1:
                 iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
@@ -372,8 +373,6 @@ class Coach():
             if self.args.numItersForTrainExamplesHistory is not None and len(self.trainExamplesHistory) > self.args.numItersForTrainExamplesHistory:
                 #print("len(trainExamplesHistory) =", len(self.trainExamplesHistory), " => remove the oldest trainExamples")
                 self.trainExamplesHistory.pop(0)
-            # backup history to a file
-            self.saveTrainExamples(i)
             
             # Shuffle examples before training.
             trainExamples = []
@@ -451,7 +450,10 @@ class Coach():
                 if verbose:
                     print('Rejecting new model')
                 self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-
+                self.nnet.save_checkpoint(folder=self.args.checkpoint, filename=self.getCheckpointFile(i))
+            
+            # Backup train data to a file.
+            self.saveTrainExamples(i)
 
     def getCheckpointFile(self, iteration):
         return 'checkpoint_' + str(iteration) + '.pth.tar'
@@ -482,6 +484,7 @@ class Coach():
         print(f'Loading model from: {modelFile}')
         with open(modelFile, "rb") as f:
             self.nnet.load_checkpoint(folder=self.args.checkpoint, filename=checkpoints[list(checkpoints.keys())[-1]])
+        self.iterationOffset = list(checkpoints.keys())[-1]
 
 
     def getCheckpoints(self):
